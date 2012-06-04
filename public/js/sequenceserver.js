@@ -213,10 +213,10 @@ $(document).ready(function () {
     $('#advanced').typeahead({
         source  : options,
         matcher : function (item) {
-          var entries = this.query.split(/{|.*,|}/).filter(function (val) {
-              return val;
-          });
-          this.query  = entries[0].trim();
+          console.log(item);
+          var match = this.query.match(/-(\w*)$/);
+          if (!match) { return 0 }
+          this.query = match[1];
           return ~item.toLowerCase().indexOf(this.query.toLowerCase());
         },
         updater : function (item) {
