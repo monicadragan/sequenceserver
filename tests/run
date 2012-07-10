@@ -8,7 +8,6 @@
 # run a particular test suite
 #
 #     $ tests/run tests/test_sequencehelpers.rb
-#
 
 # script dir
 dir = File.dirname(__FILE__)
@@ -18,7 +17,7 @@ require 'rubygems'
 $LOAD_PATH.unshift(File.join(dir, '..', 'lib'))
 
 # user specified or glob all?
-files = ARGV.empty? ? Dir[File.join(dir, 'test_*.rb')] : ARGV
+files = [ARGV.shift || Dir[File.join(dir, 'test_*.rb')]].flatten
 
 # run!
 files.each do |file|
