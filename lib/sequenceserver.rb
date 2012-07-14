@@ -28,7 +28,7 @@ module SequenceServer
   end
 
   class App < Sinatra::Base
-    include Helpers
+    include Helpers::SystemHelpers
     include SequenceHelpers
     include SequenceServer::Customisation
 
@@ -67,47 +67,6 @@ module SequenceServer
       set :log, Log
     end
 
-    # Local, app configuration settings derived from config.yml.
-    #
-    # A config.yml should contain the settings described in the following
-    # configure block as key, value pairs. See example.config.yml in the
-    # installation directory.
-    configure do
-      # store the settings hash from config.yml; further configuration values
-      # are derived from it
-      set :config,      {}
-
-      # absolute path to the blast binaries
-      #
-      # A default of 'nil' is indicative of blast binaries being present in
-      # system PATH.
-      set :bin,         Proc.new{ File.expand_path(config['bin']) rescue nil }
-
-      # absolute path to the database directory
-      #
-      # As a default use 'database' directory relative to current working
-      # directory of the running app.
-      set :database,    Proc.new{ File.expand_path(config['database']) rescue test_database }
-
-      # number of threads to be used during blasting
-      #
-      # This option is passed directly to BLAST+. We use a default value of 1
-      # as a higher value may cause BLAST+ to crash if it was not compiled with
-      # threading support.
-      set :num_threads, Proc.new{ (config['num_threads'] or 1).to_i }
-    end
-
-    # Lookup tables used by Sequence Server to pick up the right blast binary,
-    # or database. These tables should be populated during app initialization
-    # by scanning bin, and database directories.
-    configure do
-      # blast methods (executables) and their corresponding absolute path
-      set :binaries,  {}
-
-      # list of blast databases indexed by their hash value
-      set :databases, {}
-    end
-
     # Settings for the self hosted server.
     configure do
       # The port number to run SequenceServer standalone.
@@ -133,7 +92,6 @@ module SequenceServer
 
         # perform SequenceServer initializations
         puts "\n== Initializing SequenceServer..."
-        init
 
         # find out the what server to host SequenceServer with
         handler      = detect_rack_handler
@@ -150,7 +108,7 @@ module SequenceServer
         url = "http://#{bind}:#{port}"
         puts "\n== Launched SequenceServer at: #{url}"
         puts "== Press CTRL + C to quit."
-        handler.run(self, :Host => bind, :Port => port, :Logger => Logger.new('/dev/null')) do |server|
+        handler.run(new, :Host => bind, :Port => port, :Logger => Logger.new('/dev/null')) do |server|
           [:INT, :TERM].each { |sig| trap(sig) { quit!(server, handler) } }
           set :running, true
 
@@ -171,138 +129,69 @@ module SequenceServer
              "\n==             Priyam A., Woodcroft B.J., Wurm Y (in prep)." +
              "\n==             Sequenceserver: BLAST searching made easy." unless handler_name =~/cgi/i
       end
+    end
 
-      # Initializes the blast server : executables, database. Exit if blast
-      # executables, and databses can not be found. Logs the result if logging
-      # has been enabled.
-      def init
-        # first read the user supplied configuration options
-        self.config = parse_config
+    def initialize
+      super
 
-        # empty config file
-        unless config
-          log.warn("Empty configuration file: #{config_file} - will assume default settings")
-          self.config = {}
-        end
-
-        # scan for blast binaries
-        self.binaries = scan_blast_executables(bin).freeze
-
-        # Log the discovery of binaries.
-        binaries.each do |command, path|
-          log.info("Found #{command} at #{path}")
-        end
-
-        # scan for blast database
-        self.databases = scan_blast_db(database, binaries['blastdbcmd']).freeze
-
-        # Log the discovery of databases.
-        databases.each do |id, database|
-          log.info("Found #{database.type} database: #{database.title} at #{database.name}")
-        end
-      rescue IOError => error
-        log.fatal("Fail: #{error}")
-        exit
-      rescue ArgumentError => error
-        log.fatal("Error in config.yml: #{error}")
-        puts "YAML is white space sensitive. Is your config.yml properly indented?"
-        exit
-      rescue Errno::ENOENT # config file not found
-        log.info('Configuration file not found')
-        FileUtils.cp(example_config_file, config_file)
-        log.info("Generated a dummy configuration file: #{config_file}")
-        puts "\nPlease edit #{config_file} to indicate the location of your BLAST databases and run SequenceServer again."
-        exit
+      config_file = settings.config_file
+      @config = parse_config(config_file)
+      if config.empty?
+        log.warn("Empty configuration file: #{config_file} - will assume default settings")
       end
 
-      # Parse config.yml, and return the resulting hash.
-      #
-      # This method uses YAML.load_file to read config.yml. Absence of a
-      # config.yml is safely ignored as the app should then fall back on
-      # default configuration values. Any other error raised by YAML.load_file
-      # is not rescued.
-      def parse_config
-        YAML.load_file( config_file )
+      bin_dir  = File.expand_path(config['bin']) rescue nil
+      binaries = scan_blast_executables(bin_dir).freeze
+      binaries.each do |command, path|
+        settings.log.info("Found #{command} at #{path}")
       end
+
+      database_dir = File.expand_path(config['database']) rescue settings.test_database
+      databases    = scan_blast_db(database_dir, binaries['blastdbcmd']).freeze
+      databases.each do |id, database|
+        settings.log.info("Found #{database.type} database: #{database.title} at #{database.name}")
+      end
+
+      @blast = Blast.new(binaries, databases, 'num_threads' => config['num_threads'])
+    rescue IOError => error
+      settings.log.fatal("Fail: #{error}")
+      exit
+    rescue ArgumentError => error
+      settings.log.fatal("Error in config.yml: #{error}")
+      puts "YAML is white space sensitive. Is your config.yml properly indented?"
+      exit
+    rescue Errno::ENOENT # config file not found
+      settings.log.info('Configuration file not found')
+      FileUtils.cp(settings.example_config_file, config_file)
+      settings.log.info("Generated a dummy configuration file: #{config_file}")
+      puts "\nPlease edit #{config_file} to indicate the location of your BLAST databases and run SequenceServer again."
+      exit
+    end
+
+    attr_reader :config, :blast
+
+    def parse_config(config_file)
+      YAML.load_file config_file
     end
 
     get '/' do
       erb :search
     end
 
-    before '/' do
-      pass if params.empty?
-
-      # ensure required params present
-      #
-      # If a required parameter is missing, SequnceServer returns 'Bad Request
-      # (400)' error.
-      #
-      # See Twitter's [Error Codes & Responses][1] page for reference.
-      #
-      # [1]: https://dev.twitter.com/docs/error-codes-responses
-
-      if params[:method].nil? or params[:method].empty?
-         halt 400, "No BLAST method provided."
-      end
-
-      if params[:sequence].nil? or params[:sequence].empty?
-         halt 400, "No input sequence provided."
-      end
-
-      if params[:databases].nil?
-         halt 400, "No BLAST database provided."
-      end
-
-      # ensure params are valid #
-
-      # only allowed blast methods should be used
-      blast_methods = %w|blastn blastp blastx tblastn tblastx|
-      unless blast_methods.include?(params[:method])
-        halt 400, "Unknown BLAST method: #{params[:method]}."
-      end
-
-      # check the advanced options are sensible
-      begin #FIXME
-        validate_advanced_parameters(params[:advanced])
-      rescue ArgumentError => error
-        halt 400, "Advanced parameters invalid: #{error}"
-      end
+    post '/' do
+      method    = params[:method]
+      sequences = params[:sequences]
+      databases = params[:databases]
+      options   = params[:options]
 
       # log params
-      settings.log.debug('method: '   + params[:method])
-      settings.log.debug('sequence: ' + params[:sequence])
-      settings.log.debug('database: ' + params[:databases].inspect)
-      settings.log.debug('advanced: ' + params[:advanced])
-    end
+      settings.log.debug('method    : ' + method.to_s)
+      settings.log.debug('sequences : ' + sequences.to_s)
+      settings.log.debug('databases : ' + databases.inspect)
+      settings.log.debug('options   : ' + options.to_s)
 
-    post '/' do
-      method        = params['method']
-      databases     = params[:databases]
-      sequence      = params[:sequence]
-      advanced_opts = params['advanced']
-
-      # blastn implies blastn, not megablast; but let's not interfere if a user
-      # specifies `task` herself
-      if method == 'blastn' and not advanced_opts =~ /task/
-        advanced_opts << ' -task blastn '
-      end
-
-      method    = settings.binaries[ method ]
-      databases = params[:databases].map{|index|
-        settings.databases[index].name
-      }
-
-      # run blast and log
-      blast = Blast.new(method, sequence, databases.join(' '), advanced_opts)
-      blast.run!
-      settings.log.info('Ran: ' + blast.command)
-
-      unless blast.success?
-        halt *blast.error
-      end
-
-      format_blast_results(blast.result, databases)
+      query = blast.run(method, sequences, databases, options)
+      format_blast_results(query.result, databases)
     end
 
     # get '/get_sequence/?id=sequence_ids&db=retreival_databases'
@@ -361,6 +250,12 @@ HEADER
 
       out << "<pre><code>#{found_sequences}</pre></code>"
       out
+    end
+
+    error 400 do
+      error = env['sinatra.error']
+      Log.error(error) # TODO: figure out how to make Sinatra log this automatically with backtrace, like InternalServerError (500).
+      erb :'400', :locals => {:error => error}
     end
 
     def format_blast_results(result, databases)
@@ -498,16 +393,6 @@ HEADER
         return "><a href='#{url(link)}'>#{sequence_id}</a> \n"
       end
 
-    end
-
-    # Advanced options are specified by the user. Here they are checked for interference with SequenceServer operations.
-    # raise ArgumentError if an error has occurred, otherwise return without value
-    def validate_advanced_parameters(advanced_options)
-      raise ArgumentError, "Invalid characters detected in the advanced options" unless advanced_options =~ /\A[a-z0-9\-_\. ']*\Z/i
-      disallowed_options = %w(-out -html -outfmt -db -query)
-      disallowed_options.each do |o|
-        raise ArgumentError, "The advanced BLAST option \"#{o}\" is used internally by SequenceServer and so cannot be specified by the you" if advanced_options =~ /#{o}/i
-      end
     end
   end
 end

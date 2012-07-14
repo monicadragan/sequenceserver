@@ -10,12 +10,36 @@ module SequenceServer
   describe "App" do
     include Rack::Test::Methods
 
+    def self.app
+      @app ||= App.new!
+    end
+
     def app
-      App
+      self.class.app
+    end
+
+    def method
+      'blastp'
+    end
+
+    def sequence
+      # protein sequence
+<<SEQ
+>SI2.2.0_06267 locus=Si_gnF.scaffold02592[1282609..1284114].pep_2 quality=100.00
+MNTLWLSLWDYPGKLPLNFMVFDTKDDLQAAYWRDPYSIPLAVIFEDPQPISQRLIYEIR
+TNPSYTLPPPPTKLYSAPISCRKNKTGHWMDDILSIKTGESCPVNNYLHSGFLALQMITD
+ITKIKLENSDVTIPDIKLIMFPKEPYTADWMLAFRVVIPLYMVLALSQFITYLLILIVGE
+KENKIKEGMKMMGLNDSVF
+SEQ
+    end
+
+    def databases
+      databases = app.blast.databases
+      [databases.values.find{|db| db.type == :protein}.hash]
     end
 
     def setup
-      @params = {'method' => 'blastn', 'sequence' => 'AGCTAGCTAGCT', 'databases' => ['123']}
+      @params = {'method' => method, 'sequences' => sequence, 'databases' => databases}
     end
 
     it 'returns Bad Request (400) if no blast method is provided' do
@@ -25,7 +49,7 @@ module SequenceServer
     end
 
     it 'returns Bad Request (400) if no input sequence is provided' do
-      @params.delete('sequence')
+      @params.delete('sequences')
       post '/', @params
       last_response.status.must_equal 400
     end
@@ -53,7 +77,7 @@ module SequenceServer
     end
 
     it 'returns Bad Request (400) if incorrect advanced params are supplied' do
-      @params['advanced'] = '-word_size 5; rm -rf /'
+      @params['options'] = '-word_size 5; rm -rf /'
       post '/', @params
       last_response.status.must_equal 400
     end
