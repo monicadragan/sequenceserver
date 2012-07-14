@@ -21,7 +21,23 @@ class SequenceServer
   end
 
   def web_blast
-    @web_blast ||= WebBlast.new(binaries, databases, config)
+    return @web_blast if @web_blast
+    runtime = self
+    @web_blast  = Class.new(WebBlast) do
+      define_method :runtime do
+        runtime
+      end
+    end
+  end
+
+  def blast
+    return @blast if @blast
+    runtime = self
+    @blast  = Class.new(Blast) do
+      define_method :runtime do
+        runtime
+      end
+    end
   end
 
   def database_formatter

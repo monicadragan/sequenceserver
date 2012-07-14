@@ -55,18 +55,14 @@ class SequenceServer
       end
     end
 
-    def sequence_from_blastdb(ids, db)  # helpful when displaying parsed blast results
-      # we know how to handle an Array of ids
-      ids = ids.join(',') if ids.is_a? Array
-
-      # we don't know what to do if the arguments ain't String
-      raise TypeError unless ids.is_a? String and db.is_a? String
-
-      # query now!
-      #
-      # If `blastdbcmd` throws error, we assume sequence not found.
-      blastdbcmd = binaries['blastdbcmd']
-      %x|#{blastdbcmd} -db #{db} -entry '#{ids}' 2> /dev/null|
+    # Retrieve sequences from sequence databases.
+    def get_sequences(sequence_ids, database_ids)
+      sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
+      database_ids = [database_ids] unless database_ids.is_a? Array
+      blastdbcmd   = runtime.binaries['blastdbcmd']
+      entries = sequence_ids.join(' ')
+      dbs     = runtime.databases.values_at(*database_ids).map(&:name).join(' ')
+      %x|#{blastdbcmd} -db '#{dbs}' -entry '#{entries}' 2> /dev/null|
     end
 
     # Given a sequence_id and databases, apply the default (standard)

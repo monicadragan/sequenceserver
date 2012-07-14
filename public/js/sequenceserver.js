@@ -269,9 +269,7 @@ $(document).ready(function () {
         })
         .fail(function (jqXHR, status, error) {
             //alert user
-            $("#error-type").text(error);
-            $("#error-message").text(jqXHR.responseText);
-            $("#error").modal();
+            $("#error").html(jqXHR.responseText).modal();
         })
         .always(function () {
             // BLAST complete (succefully or otherwise)

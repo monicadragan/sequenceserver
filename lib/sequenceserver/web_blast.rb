@@ -53,102 +53,33 @@ class SequenceServer
       end
     end
 
-    # A Hash of absolute path to BLAST binaries indexed by its name.
-    attr_reader :binaries
+    def databases
+      runtime.databases
+    end
 
-    # A Hash of BLAST databases indexed by their id (or hash).
-    attr_reader :databases
-
-    # An Integer stating the number of threads to use for running BLASTs.
-    attr_reader :num_threads
-
-    def initialize(binaries, databases, options)
-      @binaries    = binaries
-      @databases   = databases
-      @num_threads = options.delete('num_threads')
-
-      # Sinatra, you do your magic now.
-      super()
+    def blast
+      runtime.blast
     end
 
     get '/' do
       erb :search
     end
 
-    before '/' do
-      pass if params.empty?
-
-      # ensure required params present
-      #
-      # If a required parameter is missing, SequnceServer returns 'Bad Request
-      # (400)' error.
-      #
-      # See Twitter's [Error Codes & Responses][1] page for reference.
-      #
-      # [1]: https://dev.twitter.com/docs/error-codes-responses
-
-      if params[:method].nil? or params[:method].empty?
-         halt 400, "No BLAST method provided."
-      end
-
-      if params[:sequence].nil? or params[:sequence].empty?
-         halt 400, "No input sequence provided."
-      end
-
-      if params[:databases].nil?
-         halt 400, "No BLAST database provided."
-      end
-
-      # ensure params are valid #
-
-      # only allowed blast methods should be used
-      blast_methods = %w|blastn blastp blastx tblastn tblastx|
-      unless blast_methods.include?(params[:method])
-        halt 400, "Unknown BLAST method: #{params[:method]}."
-      end
-
-      # check the advanced options are sensible
-      begin #FIXME
-        validate_advanced_parameters(params[:advanced])
-      rescue ArgumentError => error
-        halt 400, "Advanced parameters invalid: #{error}"
-      end
+    post '/' do
+      method    = params[:method]
+      sequences = params[:sequences]
+      databases = params[:databases]
+      options   = params[:options]
 
       # log params
-      settings.log.debug('method: '   + params[:method])
-      settings.log.debug('sequence: ' + params[:sequence])
-      settings.log.debug('database: ' + params[:databases].inspect)
-      settings.log.debug('advanced: ' + params[:advanced])
-    end
+      settings.log.debug('method    : ' + method.to_s)
+      settings.log.debug('sequences : ' + sequences.to_s)
+      settings.log.debug('databases : ' + databases.inspect)
+      settings.log.debug('options   : ' + options.to_s)
 
-    post '/' do
-      method        = params['method']
-      databases     = params[:databases]
-      sequence      = params[:sequence]
-      advanced_opts = params['advanced']
-
-      # blastn implies blastn, not megablast; but let's not interfere if a user
-      # specifies `task` herself
-      if method == 'blastn' and not advanced_opts =~ /task/
-        advanced_opts << ' -task blastn '
-      end
-
-      method    = binaries[ method ]
-      databases = params[:databases].map{|index|
-        self.databases[index].name
-      }
-      advanced_opts << " -num_threads #{num_threads}"
-
-      # run blast and log
-      blast = Blast.new(method, sequence, databases.join(' '), advanced_opts)
-      blast.run!
-      settings.log.info('Ran: ' + blast.command)
-
-      unless blast.success?
-        halt(*blast.error)
-      end
-
-      format_blast_results(blast.result, databases)
+      query = blast.run(method, sequences, databases, options)
+      settings.log.debug("Executing: #{query.command}")
+      format_blast_results(query.result, databases)
     end
 
     # get '/get_sequence/?id=sequence_ids&db=retreival_databases'
@@ -166,16 +97,7 @@ class SequenceServer
       # the results do not indicate which database a hit is from.
       # Thus if several databases were used for blasting, we must check them all
       # if it works, refactor with "inject" or "collect"?
-      found_sequences     = ''
-
-      retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
-        sequence = sequence_from_blastdb(sequenceids, database)
-        if sequence.empty?
-          settings.log.debug("'#{sequenceids.join(', ')}' not found in #{database}")
-        else
-          found_sequences += sequence
-        end
-      end
+      found_sequences = get_sequences(sequenceids, retrieval_databases)
 
       found_sequences_count = found_sequences.count('>')
 
@@ -207,6 +129,12 @@ HEADER
 
       out << "<pre><code>#{found_sequences}</pre></code>"
       out
+    end
+
+    error 400 do
+      error = env['sinatra.error']
+      settings.log.error(error) # TODO: figure out how to make Sinatra log this automatically with backtrace, like InternalServerError (500).
+      erb :'400', :locals => {:error => error}
     end
 
     def format_blast_results(result, databases)
@@ -341,17 +269,6 @@ HEADER
       else
         settings.log.debug('Added link for: `' + sequence_id + '\''+ link)
         return "><a href='#{url(link, false)}'>#{sequence_id}</a> \n"
-      end
-
-    end
-
-    # Advanced options are specified by the user. Here they are checked for interference with SequenceServer operations.
-    # raise ArgumentError if an error has occurred, otherwise return without value
-    def validate_advanced_parameters(advanced_options)
-      raise ArgumentError, "Invalid characters detected in the advanced options" unless advanced_options =~ /\A[a-z0-9\-_\. ']*\Z/i
-      disallowed_options = %w(-out -html -outfmt -db -query)
-      disallowed_options.each do |o|
-        raise ArgumentError, "The advanced BLAST option \"#{o}\" is used internally by SequenceServer and so cannot be specified by the you" if advanced_options =~ /#{o}/i
       end
     end
   end
