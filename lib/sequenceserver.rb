@@ -36,6 +36,9 @@ module SequenceServer
       # enable some builtin goodies
       enable :session, :logging
 
+      # enable trapping internal server error in controller
+      disable :show_exceptions
+
       # main application file
       set :app_file,   File.expand_path(__FILE__)
 
@@ -70,15 +73,6 @@ module SequenceServer
     configure do
       # The port number to run SequenceServer standalone.
       set :port, 4567
-    end
-
-    configure(:production) do
-      error do
-        erb :'500'
-      end
-      not_found do
-        erb :'500'
-      end
     end
 
     class << self
@@ -243,6 +237,10 @@ HEADER
       error = env['sinatra.error']
       Log.error(error) # TODO: figure out how to make Sinatra log this automatically with backtrace, like InternalServerError (500).
       erb :'400', :locals => {:error => error}
+    end
+
+    error 500 do
+      erb :'500', :locals => {:error => env['sinatra.error']}
     end
 
     def format_blast_results(result, databases)
