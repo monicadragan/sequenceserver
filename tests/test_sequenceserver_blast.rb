@@ -1,3 +1,4 @@
+require 'bundler/setup'
 require 'sequenceserver'
 require 'minitest/spec'
 require 'minitest/autorun'
