@@ -127,11 +127,11 @@ HEADER
     error 400 do
       error = env['sinatra.error']
       settings.log.error(error) # TODO: figure out how to make Sinatra log this automatically with backtrace, like InternalServerError (500).
-      erb :'400', :locals => {:error => error}
+      erb :'errors/400', :locals => {:error => error}
     end
 
     error 500 do
-      erb :'500', :locals => {:error => env['sinatra.error']}
+      erb :'errors/500', :locals => {:error => env['sinatra.error']}
     end
 
     def format_blast_results(result, databases)
