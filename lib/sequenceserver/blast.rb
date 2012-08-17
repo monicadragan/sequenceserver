@@ -112,9 +112,10 @@ module SequenceServer
           runtime.databases[id].name
         end.join(' ')
 
+        num_threads = runtime.num_threads
         options = @options + defaults
 
-        @command = "#{binary} -db '#{db}' -query '#{query}' #{options}"
+        @command = "#{binary} -db '#{db}' -query '#{query}' -num_threads #{num_threads} #{options}"
       end
 
       # Runs BLAST search, and captures stdout and stderr of the command ran to
