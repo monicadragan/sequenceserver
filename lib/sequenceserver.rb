@@ -1,11 +1,9 @@
 # sequenceserver.rb
 
 require 'sinatra/base'
-require 'yaml'
 require 'logger'
-require 'fileutils'
 require 'sequenceserver/env'
-require 'sequenceserver/helpers'
+require 'sequenceserver/settings'
 require 'sequenceserver/blast'
 require 'sequenceserver/sequencehelpers'
 require 'sequenceserver/sinatralikeloggerformatter'
@@ -27,8 +25,14 @@ module SequenceServer
     Log.level = Logger::INFO
   end
 
+  class << self
+
+    def settings
+      @settings ||= Settings.new
+    end
+  end
+
   class App < Sinatra::Base
-    include Helpers::SystemHelpers
     include SequenceServer::Customisation
 
     # Basic configuration settings for app.
@@ -47,24 +51,6 @@ module SequenceServer
       # SequenceServer figures out different settings, location of static
       # assets or templates for example, based on app root.
       set :root,       File.dirname(File.dirname(app_file))
-
-      # path to test database
-      #
-      # SequenceServer ships with test database (fire ant genome) so users can
-      # launch and preview SequenceServer without any configuration, and/or run
-      # test suite.
-      set :test_database, File.join(root, 'tests', 'database')
-
-      # path to example configuration file
-      #
-      # SequenceServer ships with a dummy configuration file. Users can simply
-      # copy it and make necessary changes to get started.
-      set :example_config_file, File.join(root, 'example.config.yml')
-
-      # path to SequenceServer's configuration file
-      #
-      # The configuration file is a simple, YAML data store.
-      set :config_file, Proc.new{ File.expand_path('~/.sequenceserver.conf') }
 
       set :log, Log
     end
@@ -127,45 +113,11 @@ module SequenceServer
     def initialize
       super
 
-      config_file = settings.config_file
-      @config = parse_config(config_file)
-      if config.empty?
-        log.warn("Empty configuration file: #{config_file} - will assume default settings")
-      end
-
-      bin_dir  = File.expand_path(config['bin']) rescue nil
-      binaries = scan_blast_executables(bin_dir).freeze
-      binaries.each do |command, path|
-        settings.log.info("Found #{command} at #{path}")
-      end
-
-      database_dir = File.expand_path(config['database']) rescue settings.test_database
-      databases    = scan_blast_db(database_dir, binaries['blastdbcmd']).freeze
-      databases.each do |id, database|
-        settings.log.info("Found #{database.type} database: #{database.title} at #{database.name}")
-      end
-
-      @blast = Blast.new(binaries, databases, 'num_threads' => config['num_threads'])
-    rescue IOError => error
-      settings.log.fatal("Fail: #{error}")
-      exit
-    rescue ArgumentError => error
-      settings.log.fatal("Error in config.yml: #{error}")
-      puts "YAML is white space sensitive. Is your config.yml properly indented?"
-      exit
-    rescue Errno::ENOENT # config file not found
-      settings.log.info('Configuration file not found')
-      FileUtils.cp(settings.example_config_file, config_file)
-      settings.log.info("Generated a dummy configuration file: #{config_file}")
-      puts "\nPlease edit #{config_file} to indicate the location of your BLAST databases and run SequenceServer again."
-      exit
+      settings = SequenceServer.settings
+      @blast = Blast.new(settings.binaries, settings.databases, 'num_threads' => settings.num_threads)
     end
 
-    attr_reader :config, :blast
-
-    def parse_config(config_file)
-      YAML.load_file config_file
-    end
+    attr_reader :blast
 
     get '/' do
       erb :search

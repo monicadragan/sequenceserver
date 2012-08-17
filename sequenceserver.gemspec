@@ -24,7 +24,7 @@ DESC
 
   # gem
   s.files         = Dir['lib/**/*'] + Dir['views/**/*'] + Dir['public/**/*'] + Dir['tests/**/*']
-  s.files         = s.files + ['config.ru',   'example.config.yml']
+  s.files         = s.files + Dir['.sequenceserver']
   s.files         = s.files + ['LICENSE.txt', 'LICENSE.Apache.txt', 'README.txt']
   s.files         = s.files + ['Gemfile',     'sequenceserver.gemspec']
   s.executables   = ['sequenceserver']
