@@ -4,6 +4,7 @@ require 'sinatra/base'
 require 'yaml'
 require 'logger'
 require 'fileutils'
+require 'sequenceserver/env'
 require 'sequenceserver/helpers'
 require 'sequenceserver/blast'
 require 'sequenceserver/sequencehelpers'
@@ -13,6 +14,19 @@ require 'sequenceserver/version'
 
 # Helper module - initialize the blast server.
 module SequenceServer
+
+  # App-global logger.
+  Log = Logger.new(STDERR)
+  Log.formatter = SinatraLikeLogFormatter.new()
+
+  env :development do
+    Log.level = Logger::DEBUG
+  end
+
+  env :production do
+    Log.level = Logger::INFO
+  end
+
   class App < Sinatra::Base
     include Helpers
     include SequenceHelpers
@@ -50,8 +64,7 @@ module SequenceServer
       # The configuration file is a simple, YAML data store.
       set :config_file, Proc.new{ File.expand_path('~/.sequenceserver.conf') }
 
-      set :log,        Proc.new { Logger.new(STDERR) }
-      log.formatter = SinatraLikeLogFormatter.new()
+      set :log, Log
     end
 
     # Local, app configuration settings derived from config.yml.
@@ -101,12 +114,7 @@ module SequenceServer
       set :port, 4567
     end
 
-    configure :development do
-      log.level     = Logger::DEBUG
-    end
-
     configure(:production) do
-      log.level     = Logger::INFO
       error do
         erb :'500'
       end
