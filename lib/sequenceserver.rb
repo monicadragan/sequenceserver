@@ -36,10 +36,6 @@ module SequenceServer
 
   class App < Sinatra::Base
 
-    configure do
-      set :log, Log
-    end
-
     # Settings for the self hosted server.
     configure do
       # The port number to run SequenceServer standalone.
@@ -47,51 +43,43 @@ module SequenceServer
     end
 
     class << self
-      # Run SequenceServer as a self-hosted server.
-      #
-      # By default SequenceServer uses Thin, Mongrel or WEBrick (in that
-      # order). This can be configured by setting the 'server' option.
+
       def run!(options={})
-        set options
-
-        # perform SequenceServer initializations
-        puts "\n== Initializing SequenceServer..."
-
-        # find out the what server to host SequenceServer with
-        handler      = detect_rack_handler
-        handler_name = handler.name.gsub(/.*::/, '')
-
-        puts
-        log.info("Using #{handler_name} web server.")
-
-        if handler_name == 'WEBrick'
-          puts "\n== We recommend using Thin web server for better performance."
-          puts "== To install Thin: [sudo] gem install thin"
-        end
-
         url = "http://#{bind}:#{port}"
-        puts "\n== Launched SequenceServer at: #{url}"
+        puts "== Launching SequenceServer on \"#{url}\"... Done!"
         puts "== Press CTRL + C to quit."
-        handler.run(new, :Host => bind, :Port => port, :Logger => Logger.new('/dev/null')) do |server|
-          [:INT, :TERM].each { |sig| trap(sig) { quit!(server, handler) } }
-          set :running, true
+        puts
 
-          # for Thin
-          server.silent = true if handler_name == 'Thin'
+        # Sinatra initializes the app the first time `call` is called.  But we
+        # want the app to be initialized as soon as it starts.
+        prototype
+
+        mute_stderr do
+          super
         end
       rescue Errno::EADDRINUSE, RuntimeError => e
-        puts "\n== Failed to start SequenceServer."
-        puts "== Is SequenceServer already running at: #{url}"
+        puts "== Failed to start SequenceServer."
+        puts "== Is SequenceServer already running at: \"#{url}\"?"
       end
 
-      # Stop SequenceServer.
       def quit!(server, handler_name)
-        # Use Thin's hard #stop! if available, otherwise just #stop.
-        server.respond_to?(:stop!) ? server.stop! : server.stop
-        puts "\n== Thank you for using SequenceServer :)." +
-             "\n== Please cite: " +
-             "\n==             Priyam A., Woodcroft B.J., Wurm Y (in prep)." +
-             "\n==             Sequenceserver: BLAST searching made easy." unless handler_name =~/cgi/i
+        puts
+        puts "== Thank you for using SequenceServer :)."
+        puts "== Please cite: "
+        puts "==             Priyam A., Woodcroft B.J., Wurm Y (in prep),"
+        puts "==             Sequenceserver: BLAST searching made easy."
+
+        super
+      end
+
+      private
+
+      def mute_stderr
+        stderr  = $stderr
+        $stderr = File.open('/dev/null', 'w')
+        yield
+        $stderr.close
+        $stderr = stderr
       end
     end
 
