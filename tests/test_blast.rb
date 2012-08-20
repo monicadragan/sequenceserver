@@ -8,7 +8,7 @@ module SequenceServer
   describe "Blast" do
 
     def blast
-      @blast ||= App.new!.blast
+      @blast = WebBlast.new!.blast
     end
 
     def method

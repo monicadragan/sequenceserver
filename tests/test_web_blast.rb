@@ -7,15 +7,28 @@ require 'rack/test'
 ENV['RACK_ENV'] = 'test'
 
 module SequenceServer
-  describe "App" do
-    include Rack::Test::Methods
 
-    def self.app
-      @app ||= App.new!
-    end
+  describe 'WebBlast settings' do
 
     def app
-      self.class.app
+      @app ||= WebBlast
+    end
+
+    it 'should log all requests forwarded to it' do
+      assert app.logging?
+    end
+
+    it 'should let internal server error handler take precedence over the default ShowExceptions middleware' do
+      assert !app.show_exceptions?
+    end
+  end
+
+  describe "WebBlast instance" do
+
+    include Rack::Test::Methods
+
+    def app
+      @app ||= WebBlast.new!
     end
 
     def method
