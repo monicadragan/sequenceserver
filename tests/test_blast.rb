@@ -9,7 +9,7 @@ module SequenceServer
     # Initialize BLAST runtime once for all test cases.
     def self.blast
       return @blast if @blast
-      @blast = App.new!.blast
+      @blast = WebBlast.new!.blast
     end
 
     def blast

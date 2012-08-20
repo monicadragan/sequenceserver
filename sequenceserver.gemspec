@@ -23,7 +23,7 @@ DESC
   s.add_development_dependency('rack-test')
 
   # gem
-  s.files         = Dir['lib/**/*'] + Dir['views/**/*'] + Dir['public/**/*'] + Dir['tests/**/*']
+  s.files         = Dir['lib/**/*'] + Dir['tests/**/*']
   s.files         = s.files + Dir['.sequenceserver']
   s.files         = s.files + ['LICENSE.txt', 'LICENSE.Apache.txt', 'README.txt']
   s.files         = s.files + ['Gemfile',     'sequenceserver.gemspec']
