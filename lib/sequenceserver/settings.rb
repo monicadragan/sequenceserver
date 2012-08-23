@@ -8,7 +8,7 @@ module SequenceServer
       migrate!
     end
 
-    attr_reader :binaries, :databases, :num_threads
+    attr_reader :binaries, :databases, :num_threads, :config_rb
 
     # Path to SequenceServer's configuration file.
     #
@@ -20,7 +20,8 @@ module SequenceServer
     private
 
     def migrate!
-      migrate_binaries! && migrate_databases! && migrate_num_threads!
+      migrate_binaries! && migrate_databases! && migrate_num_threads! &&
+        migrate_config_rb!
     end
 
     # Scan the given directory for blast executables. Passing `nil` scans the
@@ -132,6 +133,11 @@ INFO
       end
 
       @num_threads = num_threads_file && Integer(File.read(num_threads_file).chomp) || 1
+    end
+
+    def migrate_config_rb!
+      config_rb_file = File.expand_path('config.rb', dot_dir)
+      @config_rb = config_rb_file if File.exists? config_rb_file
     end
 
     # check if the given command exists and is executable
