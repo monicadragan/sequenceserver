@@ -26,7 +26,9 @@ jshintrc = File.join(root, '.jshintrc')
 
 # get list of scripts to run through jshint
 scripts = if ARGV.empty?
-            %w|jquery.index.js sequenceserver.js jquery.scrollspy.js sequenceserver.blast.js|.map {|script| File.join(root, 'public', 'js', script) }
+            %w|jquery.index.js sequenceserver.js jquery.scrollspy.js sequenceserver.blast.js|.map do |script|
+              File.join(root, 'lib', 'sequenceserver', 'web_blast', 'public', 'js', script)
+            end
           else
             ARGV.map {|path| File.expand_path(path)}
           end
