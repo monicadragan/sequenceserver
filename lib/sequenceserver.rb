@@ -32,6 +32,10 @@ module SequenceServer
     end
   end
 
+  # Load user specific customization, if any.
+  config_rb = settings.config_rb
+  require "#{config_rb}" if config_rb
+
   class App < Sinatra::Base
     include SequenceServer::Customisation
 
