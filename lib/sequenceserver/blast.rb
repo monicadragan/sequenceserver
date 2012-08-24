@@ -1,3 +1,4 @@
+require 'sequenceserver/sequencehelpers'
 require 'tempfile'
 
 class SequenceServer
@@ -14,6 +15,8 @@ class SequenceServer
   # method which returns the equivalent HTTP status code, and is used by
   # Sinatra to dispatch appropriate error handlers to fulfill an HTTP request.
   class Blast
+
+    include SequenceHelpers
 
     # To signal error in query sequence or options.
     #
@@ -54,6 +57,34 @@ class SequenceServer
 
     ERROR_LINE = /\(CArgException.*\)\s(.*)/
 
+    # Capture results per query of a BLAST search.
+    #
+    # @member [String]     id
+    # @member [String]     index
+    # @member [Array(Hit)] hits
+    Query = Struct.new(:id, :index, :hits)
+
+    # Capture a BLAST search hit.
+    #
+    # @member [String] id
+    # @member [String] meta
+    # @member [String] alignments
+    # @member [Array]  coordinates
+    # @member [Array]  databases
+    Hit = Struct.new(:id, :meta, :alignments, :coordinates, :databases) do
+
+      # Include an anonymous module to define `refs` method so Hit can be
+      # extended externally by including another module in front that calls
+      # `super`.
+      include Module.new {
+        def refs
+          @refs ||= {
+            'FASTA' => "/get_sequence/?id=#{id}&db=#{databases.join(' ')}"
+          }
+        end
+      }
+    end
+
     class << self
       # `Blast.run` captures the essence better.
       alias run new
@@ -73,10 +104,12 @@ class SequenceServer
       @databases = databases.to_a
       @options   = options.to_s
 
-      compile! && run!
+      compile! && run! && report!
     ensure
       [@qfile, @rfile, @efile].compact.each(&:close).each(&:unlink)
     end
+
+    attr_reader :method, :sequences, :databases
 
     # Command ran.
     attr_reader :command
@@ -84,7 +117,22 @@ class SequenceServer
     # HTML formatted result.
     attr_reader :result
 
+    # Summary of search parameters: database, matrix, gap penalties, etc.
+    attr_reader :summary
+
+    def ids
+      queries.map do |query_id, query|
+        query.hits.keys.to_a
+      end.flatten
+    end
+
+    def each(&block)
+      queries.each(&block)
+    end
+
     private
+
+    attr_reader :queries
 
     # Compile parameters for BLAST search into a shell executable command and
     # stores it in @command, and query sequence into @qfile.
@@ -142,6 +190,71 @@ class SequenceServer
 
       @rfile.open
       @result = @rfile.readlines
+    end
+
+    def report!
+      query_id = nil
+      hit_id   = nil
+      result.each do |line|
+        next if /^<(\/)(HTML|BODY|PRE)/.match(line)
+
+        if matches = line.match(/^<b>Query=<\/b> (.*)/)
+          hit_id   = nil
+          query_id = matches[1]
+          @queries ||= {}
+          @queries[query_id] = Query.new(query_id, '', {})
+          next
+        end
+
+        # Parsing results of a query.
+        if query_id
+          # Remove the javascript inclusion
+          line.gsub!(/^<script src=\"blastResult.js\"><\/script>/, '')
+
+          if not hit_id and not line.match(/^>/)
+            @queries[query_id].index << line
+            next
+          end
+
+          if line.match(/^>/)
+            hit_id, hit_meta = parse_fasta_header(line)
+            @queries[query_id][:hits][hit_id] = Hit.new(hit_id, hit_meta, '', [], @databases)
+          else
+            @queries[query_id].hits[hit_id].alignments << line
+          end
+
+          if line.match(/Query|Sbjct/)
+            @queries[query_id].hits[hit_id].coordinates << parse_hit_coordinates(line)
+          end
+        end
+
+        if line.match(/^  Database: /)
+          query_id = nil
+          hit_id   = nil
+          @summary = ''
+        end
+
+        # FIXME: SS shouldn't really have to rely on BLAST output for this
+        if @summary
+          @summary << line
+        end
+      end
+    end
+
+    # Given a line of BLAST+'s HTML output, parse sequence id out of it.
+    def parse_fasta_header(line)
+      # Strip HTML from the output line, to get plain-text-FASTA-header of the
+      # hit.
+      header = line.gsub(/<\/?[^>]*>/, '')
+
+      # Characters between leading greater than sign and first whitespace
+      # comprise sequence id.
+      header.match(/^>(\S+)\s*(.*)/)[1..2]
+    end
+
+    # Compute hit coordinates -- useful for linking to genome browsers.
+    def parse_hit_coordinates(line)
+      line.split.values_at(1, -1)
     end
 
     def validate

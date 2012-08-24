@@ -1,0 +1,17 @@
+<div class="resultn" id="<%= query_id %>">
+  <h3>
+    Query=<%= query_id %>
+  </h3>
+
+  <pre>
+<%= query.index.strip %>
+
+<% query.hits.each do |hit_id, hit| %>
+<a id="<%= hit_id.split('|').last %>"></a>
+<%= ">#{hit_id} #{hit.meta}" %> <%= hit.refs.map{|name, href| "[<a href=#{uri(href)}>#{name}</a>]"}.join(' ') %>
+
+<%= hit.alignments.strip %>
+
+<% end %>
+  </pre>
+</div>
