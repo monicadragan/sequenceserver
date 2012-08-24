@@ -46,8 +46,6 @@ scripts.each do |script|
     puts output
     puts "****************************************"
     puts
-    success = false
+    exit false
   end
 end
-
-exit success
