@@ -248,6 +248,24 @@ module SequenceServer
       blast.run(*args)
     end
 
+    # Retrieve sequences from the databases.
+    def get(sequence_ids, *database_ids)
+      sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
+
+      blastdbcmd = binaries['blastdbcmd']
+      entries    = sequence_ids.join(',')
+
+      sequences = database_ids.map do |database_id|
+        db = databases[database_id].name
+        sequence = %x|#{blastdbcmd} -db #{db} -entry '#{entries}' 2> /dev/null|
+        if sequence.empty?
+          Log.debug("'#{sequence_ids}' not found in #{db}.")
+        else
+          sequence
+        end
+      end.compact.join
+    end
+
     private
 
     # A table of 'other' BLAST+ options derived from config file.

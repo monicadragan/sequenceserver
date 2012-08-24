@@ -29,7 +29,6 @@ module SequenceServer
 
   class App < Sinatra::Base
     include Helpers::SystemHelpers
-    include SequenceHelpers
     include SequenceServer::Customisation
 
     # Basic configuration settings for app.
@@ -200,47 +199,35 @@ module SequenceServer
     # in identifiers) and retreival_databases (we don't allow whitespace in a
     # database's name, so it's safe).
     get '/get_sequence/' do
-      sequenceids = params[:id].split(/\s/).uniq  # in a multi-blast
-      # query some may have been found multiply
-      retrieval_databases = params[:db].split(/\s/)
+      sequence_ids = params[:id].split(/\s/).uniq  # in a multi-blast
+      database_ids = params[:db].split(/\s/)
 
-      settings.log.info("Looking for: '#{sequenceids.join(', ')}' in '#{retrieval_databases.join(', ')}'")
+      # BLAST+ does not indicate which database a hit is from.  Thus if several
+      # databases were used for blasting, we must check them all.
+      settings.log.info("Searching for: '#{sequence_ids.join(', ')}' in '#{database_ids.join(', ')}'")
 
-      # the results do not indicate which database a hit is from.
-      # Thus if several databases were used for blasting, we must check them all
-      # if it works, refactor with "inject" or "collect"?
-      found_sequences     = ''
-
-      retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
-        sequence = sequence_from_blastdb(sequenceids, database)
-        if sequence.empty?
-          settings.log.debug("'#{sequenceids.join(', ')}' not found in #{database}")
-        else
-          found_sequences += sequence
-        end
-      end
-
-      found_sequences_count = found_sequences.count('>')
+      sequences  = blast.get(sequence_ids, *database_ids)
+      nsequences = sequences.count('>')
 
       out = ''
       # just in case, checking we found right number of sequences
-      if found_sequences_count != sequenceids.length
+      if nsequences != sequence_ids.length
         out <<<<HEADER
 <h1>ERROR: incorrect number of sequences found.</h1>
 <p>Dear user,</p>
 
 <p><strong>We have found
-<em>#{found_sequences_count > sequenceids.length ? 'more' : 'less'}</em>
+<em>#{nsequences > sequence_ids.length ? 'more' : 'less'}</em>
 sequence than expected.</strong></p>
 
 <p>This is likely due to a problem with how databases are formatted. 
 <strong>Please share this text with the person managing this website so 
 they can resolve the issue.</strong></p>
 
-<p> You requested #{sequenceids.length} sequence#{sequenceids.length > 1 ? 's' : ''}
-with the following identifiers: <code>#{sequenceids.join(', ')}</code>,
+<p> You requested #{sequence_ids.length} sequence#{sequence_ids.length > 1 ? 's' : ''}
+with the following identifiers: <code>#{sequence_ids.join(', ')}</code>,
 from the following databases: <code>#{retrieval_databases.join(', ')}</code>.
-But we found #{found_sequences_count} sequence#{found_sequences_count> 1 ? 's' : ''}.
+But we found #{nsequences} sequence#{nsequences > 1 ? 's' : ''}.
 </p>
 
 <p>If sequences were retrieved, you can find them below (but some may be incorrect, so be careful!).</p>
@@ -248,7 +235,7 @@ But we found #{found_sequences_count} sequence#{found_sequences_count> 1 ? 's' :
 HEADER
       end
 
-      out << "<pre><code>#{found_sequences}</pre></code>"
+      out << "<pre><code>#{sequences}</pre></code>"
       out
     end
 
