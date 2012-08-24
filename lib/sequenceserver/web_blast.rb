@@ -1,11 +1,9 @@
 require 'sinatra/base'
 require 'sequenceserver/blast'
-require 'sequenceserver/customisation'
 require 'sequenceserver/sequencehelpers'
 
 module SequenceServer
   class WebBlast < Sinatra::Base
-    include SequenceServer::Customisation
 
     # Basic configuration settings for app.
     configure do
@@ -149,24 +147,8 @@ HEADER
         line.gsub!(/^<script src=\"blastResult.js\"><\/script>/, '')
 
         if line.match(/^>/) # If line to possibly replace
-          # Reposition the anchor to the end of the line, so that it both still works and
-          # doesn't interfere with the diagnostic space at the beginning of the line.
-          #
-          # There are two cases:
-          #
-          # database formatted _with_ -parse_seqids
-          line.gsub!(/^>(.+)(<a.*><\/a>)(.*)/, '>\1\3\2')
-          #
-          # database formatted _without_ -parse_seqids
-          line.gsub!(/^>(<a.*><\/a>)(.*)/, '>\2\1')
-
-          # get hit coordinates -- useful for linking to genome browsers
-          hit_length      = result[line_number..-1].index{|l| l =~ />lcl|Lambda/}
-          hit_coordinates = result[line_number, hit_length].grep(/Sbjct/).
-            map(&:split).map{|l| [l[1], l[-1]]}.flatten.map(&:to_i).minmax
-
           # Create the hyperlink (if required)
-          formatted_result += construct_sequence_hyperlink_line(line, databases, hit_coordinates)
+          formatted_result += format_hit_line!(line, line_number, result, databases)
         else
           # Surround each query's result in <div> tags so they can be coloured by CSS
           if matches = line.match(/^<b>Query=<\/b> (.*)/) # If starting a new query, then surround in new <div> tag, and finish the last one off
@@ -196,49 +178,58 @@ HEADER
       "<pre>#{reference_string.strip}</pre>"
     end
 
-    def construct_sequence_hyperlink_line(line, databases, hit_coordinates)
-      matches = line.match(/^>(.+)/)
-      sequence_id = matches[1]
+    # Format `line`, `line_number` in BLAST search `result` generated from the
+    # list of `databases`, to our liking.  And append parsed sequence ids to
+    # @all_retrievable_ids.
+    def format_hit_line!(line, line_number, result, databases)
+      sequence_id = parse_sequence_id(line)
 
-      link = nil
-
-      # If a custom sequence hyperlink method has been defined,
-      # use that.
-      options = {
-        :sequence_id => sequence_id,
-        :databases => databases,
-        :hit_coordinates => hit_coordinates
-      }
-
-      # First precedence: construct the whole line to be customised
-      if self.respond_to?(:construct_custom_sequence_hyperlinking_line)
-        Log.debug("Using custom hyperlinking line creator with sequence #{options.inspect}")
-        link_line = construct_custom_sequence_hyperlinking_line(options)
-        unless link_line.nil?
-          return link_line
-        end
-      end
-
-      # If we have reached here, custom construction of the
-      # whole line either wasn't defined, or returned nil
-      # (indicating failure)
-      if self.respond_to?(:construct_custom_sequence_hyperlink)
-        Log.debug("Using custom hyperlink creator with sequence #{options.inspect}")
-        link = construct_custom_sequence_hyperlink(options)
-      else
-        Log.debug("Using standard hyperlink creator with sequence `#{options.inspect}'")
-        link = construct_standard_sequence_hyperlink(options)
-      end
-
-      # Return the BLAST output line with the link in it
-      if link.nil?
-        Log.debug('No link added link for: `'+ sequence_id +'\'')
+      unless sequence_id
+        Log.debug "Database formatted without `-parse_seqids`. Hyperlinking hit-sequence disabled."
         return line
-      else
-        Log.debug('Added link for: `'+ sequence_id +'\''+ link)
-        return "><a href='#{url(link)}'>#{sequence_id}</a> \n"
       end
 
+      # Store id of all hits so we can generate "Download FASTA of all hits"
+      # link later.
+      (@all_retrievable_ids ||= []) << sequence_id
+
+      hit_coordinates = parse_hit_coordinates(line_number, result)
+
+      Log.debug "Generating retrieval hyperlink for: #{sequence_id}, #{hit_coordinates}."
+      construct_sequence_hyperlink_line(sequence_id, databases, hit_coordinates)
+    end
+
+    # Given a line of BLAST+'s HTML output, parse sequence id out of it.
+    def parse_sequence_id(line)
+      # Strip HTML from the output line, to get plain-text-FASTA-header of the
+      # hit.
+      header = line.gsub(/<\/?[^>]*>/, '')
+
+      # Characters between leading greater than sign and first whitespace
+      # comprise sequence id.
+      header[/^>(\S+)\s*.*/, 1]
+    end
+
+    # Compute hit coordinates -- useful for linking to genome browsers.
+    def parse_hit_coordinates(line_number, result)
+      hit_length      = result[line_number..-1].index{|l| l =~ />lcl|Lambda/}
+      hit_coordinates = result[line_number, hit_length].grep(/Sbjct/).
+        map(&:split).map{|l| [l[1], l[-1]]}.flatten.map(&:to_i).minmax
+    end
+
+    # Given sequence id, a list of databases, and hit_coordinates (optional),
+    # return a URL that can be used to retrieve that sequence from user's
+    # sequence database.
+    def construct_sequence_hyperlink(sequence_id, databases, hit_coordinates = nil)
+      "/get_sequence/?id=#{sequence_id}&db=#{databases.join(' ')}" # several dbs separate by ' '
+    end
+
+    # Given sequence id, a list of databases, and hit_coordinates (optional),
+    # return a line to 'mark a hit', that will be slotted into formatted BLAST
+    # result in place of the default BLAST+'s output.
+    def construct_sequence_hyperlink_line(sequence_id, databases, hit_coordinates = nil)
+      link = construct_sequence_hyperlink(sequence_id, databases, hit_coordinates)
+      "><a href='#{url(link)}'>#{sequence_id}</a> \n"
     end
   end
 end
