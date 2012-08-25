@@ -46,7 +46,7 @@ module SequenceServer
       format_blast_results(query.result, databases)
     end
 
-    # get '/get_sequence/?id=sequence_ids&db=retreival_databases'
+    # get '/get_sequence/?id=sequence_ids&db=retreival_databases&download=true'
     #
     # Use whitespace to separate entries in sequence_ids (all other chars exist
     # in identifiers) and retreival_databases (we don't allow whitespace in a
@@ -60,36 +60,16 @@ module SequenceServer
       Log.info("Searching for: '#{sequence_ids.join(', ')}' in '#{database_ids.join(', ')}'")
 
       sequences  = blast.get(sequence_ids, *database_ids)
-      nsequences = sequences.count('>')
 
-      out = ''
-      # just in case, checking we found right number of sequences
-      if nsequences != sequence_ids.length
-        out <<<<HEADER
-<h1>ERROR: incorrect number of sequences found.</h1>
-<p>Dear user,</p>
+      if params[:download]
+        download_name = "sequenceserver_#{sequence_ids.first}.txt"
+        file = Tempfile.open(download_name) do |file|
+          file.puts sequences
+          file
+        end
 
-<p><strong>We have found
-<em>#{nsequences > sequence_ids.length ? 'more' : 'less'}</em>
-sequence than expected.</strong></p>
-
-<p>This is likely due to a problem with how databases are formatted.
-<strong>Please share this text with the person managing this website so
-they can resolve the issue.</strong></p>
-
-<p> You requested #{sequence_ids.length} sequence#{sequence_ids.length > 1 ? 's' : ''}
-with the following identifiers: <code>#{sequence_ids.join(', ')}</code>,
-from the following databases: <code>#{retrieval_databases.join(', ')}</code>.
-But we found #{nsequences} sequence#{nsequences > 1 ? 's' : ''}.
-</p>
-
-<p>If sequences were retrieved, you can find them below (but some may be incorrect, so be careful!).</p>
-<hr/>
-HEADER
+        send_file file.path, :filename => download_name
       end
-
-      out << "<pre><code>#{sequences}</pre></code>"
-      out
     end
 
     error 400 do
@@ -167,8 +147,10 @@ HEADER
       formatted_result << "</pre>"
 
       link_to_fasta_of_all = "/get_sequence/?id=#{@all_retrievable_ids.join(' ')}&db=#{string_of_used_databases}"
+      download_all_fasta   = "#{link_to_fasta_of_all}&download=true"
       # #dbs must be sep by ' '
-      retrieval_text       = @all_retrievable_ids.empty? ? '' : "<a href='#{url(link_to_fasta_of_all)}'>FASTA of #{@all_retrievable_ids.length} retrievable hit(s)</a>"
+
+      retrieval_text       = @all_retrievable_ids.empty? ? '' : "<a href='#{url(link_to_fasta_of_all)}'>FASTA of #{@all_retrievable_ids.length} hit(s)</a> <a class='pull-right icon-download-alt' href='#{download_all_fasta}'></a>"
 
       "<h2>Results</h2>"+
       retrieval_text +
@@ -228,8 +210,9 @@ HEADER
     # return a line to 'mark a hit', that will be slotted into formatted BLAST
     # result in place of the default BLAST+'s output.
     def construct_sequence_hyperlink_line(sequence_id, databases, hit_coordinates = nil)
-      link = construct_sequence_hyperlink(sequence_id, databases, hit_coordinates)
-      "><a href='#{url(link)}'>#{sequence_id}</a> \n"
+      link     = construct_sequence_hyperlink(sequence_id, databases, hit_coordinates)
+      download = "#{link}&download=true"
+      "><a href='#{url(link)}'>#{sequence_id}</a> <a class='pull-right icon-download-alt' title='Download.' href='#{url(download)}'></a>\n"
     end
   end
 end
