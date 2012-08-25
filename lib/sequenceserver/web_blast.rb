@@ -69,6 +69,8 @@ module SequenceServer
         end
 
         send_file file.path, :filename => download_name
+      else
+        return erb :'sequences/show', :locals => {:sequences => sequences}
       end
     end
 
