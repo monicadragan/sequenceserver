@@ -254,17 +254,19 @@ module SequenceServer
       sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
 
       blastdbcmd = binaries['blastdbcmd']
-      entries    = sequence_ids.join(',')
+      #entries    = sequence_ids.join(',')
 
-      sequences = database_ids.map do |database_id|
-        db = databases[database_id].name
-        sequence = %x|#{blastdbcmd} -db #{db} -entry '#{entries}' 2> /dev/null|
-        if sequence.empty?
-          Log.debug("'#{sequence_ids}' not found in #{db}.")
-        else
-          sequence
-        end
-      end.compact.join
+      database_ids.map do |database_id|
+        database = databases[database_id].name
+        sequence_ids.map do |sequence_id|
+          sequence = %x|#{blastdbcmd} -db #{database} -entry '#{sequence_id}' 2> /dev/null|
+            if sequence.empty?
+              Log.debug("'#{sequence_id}' not found in #{database}.")
+            else
+              sequence
+            end
+        end.compact
+      end.flatten
     end
 
     private
