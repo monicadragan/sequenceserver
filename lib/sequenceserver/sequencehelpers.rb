@@ -60,9 +60,11 @@ class SequenceServer
       sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
       database_ids = [database_ids] unless database_ids.is_a? Array
       blastdbcmd   = runtime.binaries['blastdbcmd']
-      entries = sequence_ids.join(' ')
-      dbs     = runtime.databases.values_at(*database_ids).map(&:name).join(' ')
-      %x|#{blastdbcmd} -db '#{dbs}' -entry '#{entries}' 2> /dev/null|
+      dbs = runtime.databases.values_at(*database_ids).map(&:name).join(' ')
+      sequences = sequence_ids.map do |sequence_id|
+        %x|#{blastdbcmd} -db '#{dbs}' -entry '#{sequence_id}' 2> /dev/null|
+      end
+      sequences
     end
   end
 end

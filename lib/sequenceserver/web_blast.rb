@@ -73,53 +73,37 @@ class SequenceServer
       erb :results, :locals => {:query => query}
     end
 
-    # get '/get_sequence/?id=sequence_ids&db=retreival_databases'
+    # get '/get_sequence/?id=sequence_ids&db=retreival_databases&download=true'
     #
     # Use whitespace to separate entries in sequence_ids (all other chars exist
     # in identifiers) and retreival_databases (we don't allow whitespace in a
     # database's name, so it's safe).
     get '/get_sequence/' do
-      sequenceids = params[:id].split(/\s/).uniq  # in a multi-blast
-      # query some may have been found multiply
+      sequence_ids = params[:id].split(/\s/).uniq  # in a multi-blast
       retrieval_databases = params[:db].split(/\s/)
-
-      settings.log.info("Looking for: '#{sequenceids.join(', ')}' in '#{retrieval_databases.join(', ')}'")
-
-      # the results do not indicate which database a hit is from.
-      # Thus if several databases were used for blasting, we must check them all
-      # if it works, refactor with "inject" or "collect"?
-      found_sequences = get_sequences(sequenceids, retrieval_databases)
-
-      found_sequences_count = found_sequences.count('>')
-
-      out = ''
-      # just in case, checking we found right number of sequences
-      if found_sequences_count != sequenceids.length
-        out << <<HEADER
-<h1>ERROR: incorrect number of sequences found.</h1>
-<p>Dear user,</p>
-
-<p><strong>We have found
-<em>#{found_sequences_count > sequenceids.length ? 'more' : 'less'}</em>
-sequence than expected.</strong></p>
-
-<p>This is likely due to a problem with how databases are formatted. 
-<strong>Please share this text with the person managing this website so 
-they can resolve the issue.</strong></p>
-
-<p> You requested #{sequenceids.length} sequence#{sequenceids.length > 1 ? 's' : ''}
-with the following identifiers: <code>#{sequenceids.join(', ')}</code>,
-from the following databases: <code>#{retrieval_databases.join(', ')}</code>.
-But we found #{found_sequences_count} sequence#{found_sequences_count> 1 ? 's' : ''}.
-</p>
-
-<p>If sequences were retrieved, you can find them below (but some may be incorrect, so be careful!).</p>
-<hr/>
-HEADER
+      settings.log.info("Looking for: '#{sequence_ids.join(', ')}' in '#{retrieval_databases.join(', ')}'")
+      sequences = get_sequences(sequence_ids, retrieval_databases)
+      error     = nil
+      unless sequences.count == sequence_ids.count
+        error = {
+          :nexpected    => sequence_ids.count,
+          :nfound       => sequences.count,
+          :sequence_ids => sequence_ids,
+          :databases    => retrieval_databases
+        }
       end
 
-      out << "<pre><code>#{found_sequences}</pre></code>"
-      out
+      if params[:download]
+        download_name = "sequenceserver_#{sequence_ids.first}.txt"
+        file = Tempfile.open(download_name) do |f|
+          f.puts sequences
+          f
+        end
+
+        send_file file.path, :filename => download_name
+      else
+        erb :'sequence-viewer/show', :locals => {:sequences => sequences, :error => error}
+      end
     end
 
     error 400 do

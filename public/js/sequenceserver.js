@@ -286,6 +286,30 @@ $(document).ready(function () {
         return false;
     });
 
+    $('.results')
+    .on('click', function (event) {
+        var clicked = $(event.target);
+
+        var url = clicked.attr('href');
+        if (url.match(/get_sequence/) && !url.match(/download=true$/)) {
+            event.preventDefault();
+            $.get(url)
+            .done(function (sequences) {
+                $('#sequences').html(sequences);
+                $('#download-link').attr('href', url + '&download=true');
+                $('#sequence-viewer').modal();
+            })
+            .fail(function (jqXHR, status, error) {
+                if (jqXHR.responseText) {
+                    $("#error").html(jqXHR.responseText).modal();
+                }
+                else {
+                    $("#error-no-response").modal();
+                }
+            });
+        }
+    });
+
     (function (store) {
         try {
             var visits = store.get('visits') || 0;
