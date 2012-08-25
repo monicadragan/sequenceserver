@@ -20,6 +20,7 @@
   <script type="text/javascript" src="<%= uri('/js/bootstrap.modal.js') %>"></script>
   <script type="text/javascript" src="<%= uri('/js/sequenceserver.js') %>"></script>
   <script type="text/javascript" src="<%= uri('/js/sequenceserver.blast.js') %>"></script>
+  <script type="text/javascript" src="<%= uri('/js/sequenceserver.sequence-viewer.js') %>"></script>
 
   <%# without a space after erb's closing tag, a / gets appended to css' path %>
   <link rel="stylesheet" media="screen" type="text/css" href="<%= uri('/css/bootstrap.min.css') %>" />
@@ -156,7 +157,8 @@
         </div>
       </div>
 
-      <%= erb :errors %>
+      <%= erb :sequences %>
+      <%= erb :errors    %>
 
       <div id="underbar">
         <p><strong><a href='http://www.sequenceserver.com'>
