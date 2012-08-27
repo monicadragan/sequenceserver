@@ -212,9 +212,8 @@ module SequenceServer
     # return a line to 'mark a hit', that will be slotted into formatted BLAST
     # result in place of the default BLAST+'s output.
     def construct_sequence_hyperlink_line(sequence_id, databases, hit_coordinates = nil)
-      link     = construct_sequence_hyperlink(sequence_id, databases, hit_coordinates)
-      download = "#{link}&download=true"
-      "><a href='#{url(link)}'>#{sequence_id}</a> <a class='pull-right icon-download-alt' title='Download.' href='#{url(download)}'></a>\n"
+      link = construct_sequence_hyperlink(sequence_id, databases, hit_coordinates)
+      "><a class='sequence' href='#{url(link)}'>#{sequence_id}</a>\n"
     end
   end
 end
