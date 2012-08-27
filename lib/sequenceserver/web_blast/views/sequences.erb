@@ -1,9 +1,22 @@
-<%
-# Placeholder to view hit sequences: server sends requested sequences to the
-# client, and the client simply slots them in.
+<%#
+  # View template for 'sequence viewer'.
 %>
-<div class="modal hide sequences">
+<div class="modal hide" id="sequence-viewer">
+
+  <% # Without `modal-header` the sequence viewer looks, well, headless. %>
   <div class="modal-header"></div>
+
+  <%#
+    # Sequences sent from the server (a result of rendering
+    # `sequences/show.erb`) are slotted into `modal-body`.
+  %>
   <div class="modal-body" id="sequences"></div>
-  <div class="modal-footer" id="links"></div>
+
+  <%#
+    # Additionally, a link to download the sequence is put into `modal-footer`.
+  %>
+  <div class="modal-footer">
+      <a class='pull-right icon-download-alt' id='download-link'
+        title="Download and dismiss." href=""></a>
+  </div>
 </div>
