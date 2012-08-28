@@ -76,8 +76,8 @@ module SequenceServer
       def fetch(id)
         table.fetch(id)
       rescue KeyError
-        raise ArgumentError.new("Database id should be one of
-                                #{table.keys.join(',')}.")
+        raise ArgumentError.new("Database id should be one of: " +
+                                "#{table.keys.join(', ')}.")
       end
 
       attr_reader :table
@@ -275,23 +275,11 @@ module SequenceServer
     end
 
     # Retrieve sequences from the databases.
-    def get(sequence_ids, *database_ids)
-      sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
-
-      blastdbcmd = binaries['blastdbcmd']
-      #entries    = sequence_ids.join(',')
-
-      database_ids.map do |database_id|
-        database = databases[database_id].name
-        sequence_ids.map do |sequence_id|
-          sequence = %x|#{blastdbcmd} -db #{database} -entry '#{sequence_id}' 2> /dev/null|
-            if sequence.empty?
-              Log.debug("'#{sequence_id}' not found in #{database}.")
-            else
-              sequence
-            end
-        end.compact
-      end.flatten
+    def get(sequence_ids, database_ids)
+      blastdbcmd = command('blastdbcmd')
+      entries    = sequence_ids.join(' ')
+      databases  = self.databases[*database_ids].map(&:name).join(' ')
+      %x|#{blastdbcmd} -db '#{databases}' -entry '#{entries}' 2> /dev/null|
     end
 
     private

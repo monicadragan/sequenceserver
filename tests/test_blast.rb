@@ -6,14 +6,9 @@ require 'minitest/autorun'
 module SequenceServer
 
   describe "Blast" do
-    # Initialize BLAST runtime once for all test cases.
-    def self.blast
-      return @blast if @blast
-      @blast = App.new!.blast
-    end
 
     def blast
-      self.class.blast
+      @blast ||= App.new!.blast
     end
 
     def method
@@ -22,31 +17,49 @@ module SequenceServer
 
     def sequences
       # protein sequence
+#<<SEQ
+#>SI2.2.0_06267 locus=Si_gnF.scaffold02592[1282609..1284114].pep_2 quality=100.00
+#MNTLWLSLWDYPGKLPLNFMVFDTKDDLQAAYWRDPYSIPLAVIFEDPQPISQRLIYEIR
+#TNPSYTLPPPPTKLYSAPISCRKNKTGHWMDDILSIKTGESCPVNNYLHSGFLALQMITD
+#ITKIKLENSDVTIPDIKLIMFPKEPYTADWMLAFRVVIPLYMVLALSQFITYLLILIVGE
+#KENKIKEGMKMMGLNDSVF
+#SEQ
 <<SEQ
->SI2.2.0_06267 locus=Si_gnF.scaffold02592[1282609..1284114].pep_2 quality=100.00
-MNTLWLSLWDYPGKLPLNFMVFDTKDDLQAAYWRDPYSIPLAVIFEDPQPISQRLIYEIR
-TNPSYTLPPPPTKLYSAPISCRKNKTGHWMDDILSIKTGESCPVNNYLHSGFLALQMITD
-ITKIKLENSDVTIPDIKLIMFPKEPYTADWMLAFRVVIPLYMVLALSQFITYLLILIVGE
-KENKIKEGMKMMGLNDSVF
+>lcl|SI2.2.0_06267 locus=Si_gnF.scaffold02592[1282609..1284114].pep_2 quality=100.00
+MNTLWLSLWDYPGKLPLNFMVFDTKDDLQAAYWRDPYSIPLAVIFEDPQPISQRLIYEIRTNPSYTLPPPPTKLYSAPIS
+CRKNKTGHWMDDILSIKTGESCPVNNYLHSGFLALQMITDITKIKLENSDVTIPDIKLIMFPKEPYTADWMLAFRVVIPL
+YMVLALSQFITYLLILIVGEKENKIKEGMKMMGLNDSVF
 SEQ
     end
 
     def databases
-      [blast.databases.find{|db| db.type == :protein}.hash]
+      #[blast.databases.find{|db| !!(db.name =~ /Sinvicta2-2-3.prot.subset.fasta/)}.hash]
+      [blast.databases.find{|db| !!(db.name =~ /SI2\.2\.3\.fa/)}.hash]
     end
 
     def options
       ''
     end
 
-    it 'should successfully run a BLAST search' do
+    def sequence_ids
+      %w|SI2.2.0_06267|
+    end
+
+    it 'should successfully run a search if correct parameters are given' do
       result = blast.run(method, sequences, databases, options)
       assert result.is_a?(Blast::Query), "Expected a Blast::Query object."
     end
 
-    it 'should raise argument error if an invalid BLAST method is given' do
+    it 'should raise argument error if an incorrect search algorithm is given' do
+
+      # completely arbitray word used as search method
       assert_raises Blast::ArgumentError do
         blast.run('foo', sequences, databases, options)
+      end
+
+      # another BLAST+ binary used as search method
+      assert_raises Blast::ArgumentError do
+        blast.run('blastdbcmd', sequences, databases, options)
       end
     end
 
@@ -71,6 +84,10 @@ SEQ
       assert_raises Blast::ArgumentError do
         blast.run(method, sequences, databases, '-matrix moo')
       end
+    end
+
+    it 'should return sequences given their ids and databases to search' do
+      assert_equal sequences, blast.get(sequence_ids, databases)
     end
 
     #it 'should raise runtime error if an invalid database is given' do
