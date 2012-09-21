@@ -92,7 +92,7 @@ class SequenceServer
 
       database = SequenceServer::Database.new(name, title, type)
       puts "Found #{database.type} database: #{database.title} at #{database.name}"
-      databases[database.hash] = database
+      databases[database.id] = database
     end
     @databases = databases
   end

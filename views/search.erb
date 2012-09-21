@@ -79,7 +79,7 @@
                   <div class="controls offset-left">
                     <% databases.values.select{|database| database.type == :nucleotide}.sort.each do |database| %>
                       <label class="checkbox">
-                        <input type="checkbox" name="databases[]" value="<%=database.hash%>" data-type="<%=database.type%>" />
+                        <input type="checkbox" name="databases[]" value="<%=database.id%>" data-type="<%=database.type%>" />
                         <span> <%= database.title or database.name %></span>
                       </label>
                     <% end %>
@@ -97,7 +97,7 @@
                   <div class="controls offset-left">
                     <% databases.values.select{|database| database.type == :protein}.sort.each do |database| %>
                       <label class="checkbox">
-                        <input type="checkbox" name="databases[]" value="<%=database.hash%>" data-type="<%=database.type%>" />
+                        <input type="checkbox" name="databases[]" value="<%=database.id%>" data-type="<%=database.type%>" />
                         <span> <%= database.title or database.name %></span>
                       </label>
                     <% end %>

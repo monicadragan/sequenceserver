@@ -31,7 +31,7 @@ SEQ
     end
 
     def databases
-      [runtime.databases.find{|id, db| db.title =~ /Sinvicta\.prot/}.last.hash]
+      [runtime.databases.find{|id, db| db.title =~ /Sinvicta\.prot/}.last.id]
     end
 
     def options
