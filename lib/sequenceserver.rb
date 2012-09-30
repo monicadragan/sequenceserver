@@ -10,11 +10,11 @@ require 'sequenceserver/sequencehelpers'
 require 'sequenceserver/sinatralikeloggerformatter'
 require 'sequenceserver/customisation'
 require 'sequenceserver/version'
+require 'sequenceserver/settings'
 
 # Helper module - initialize the blast server.
 module SequenceServer
   class App < Sinatra::Base
-    include Helpers
     include SequenceHelpers
     include SequenceServer::Customisation
 
@@ -39,62 +39,32 @@ module SequenceServer
       # test suite.
       set :test_database, File.join(root, 'tests', 'database')
 
-      # path to example configuration file
-      #
-      # SequenceServer ships with a dummy configuration file. Users can simply
-      # copy it and make necessary changes to get started.
-      set :example_config_file, File.join(root, 'example.config.yml')
-
-      # path to SequenceServer's configuration file
-      #
-      # The configuration file is a simple, YAML data store.
-      set :config_file, Proc.new{ File.expand_path('~/.sequenceserver.conf') }
-
       set :log,       Logger.new(STDERR)
       log.formatter = SinatraLikeLogFormatter.new()
     end
 
-    # Local, app configuration settings derived from config.yml.
-    #
-    # A config.yml should contain the settings described in the following
-    # configure block as key, value pairs. See example.config.yml in the
-    # installation directory.
+    # Settings derived from configuration directory.
     configure do
-      # store the settings hash from config.yml; further configuration values
-      # are derived from it
-      set :config,      {}
+      # Absolute path to BLAST+ binaries, indexed by the name of the
+      # executable.
+      set :binaries,  Settings.get('binaries')
 
-      # absolute path to the blast binaries
-      #
-      # A default of 'nil' is indicative of blast binaries being present in
-      # system PATH.
-      set :bin,         Proc.new{ File.expand_path(config['bin']) rescue nil }
+      # Table of blast databases.
+      set :databases, Settings.get('databases')
 
-      # absolute path to the database directory
-      #
-      # As a default use 'database' directory relative to current working
-      # directory of the running app.
-      set :database,    Proc.new{ File.expand_path(config['database']) rescue test_database }
+      # Port number to run Sequence Server on.
+      set :port,      Settings.get('port')
 
-      # the port number to run Sequence Server standalone
-      set :port,        Proc.new{ (config['port'] or 4567).to_i }
-
-      # number of threads to be used during blasting
-      #
-      # This option is passed directly to BLAST+. We use a default value of 1
-      # as a higher value may cause BLAST+ to crash if it was not compiled with
-      # threading support.
-      set :num_threads, Proc.new{ (config['num_threads'] or 1).to_i }
+      # Number of threads to be used by BLAST+.
+      set :num_threads, Settings.get('num_threads')
     end
 
     # Lookup tables used by Sequence Server to pick up the right blast binary,
     # or database. These tables should be populated during app initialization
     # by scanning bin, and database directories.
     configure do
-      # blast methods (executables) and their corresponding absolute path
       set :binaries,  {}
 
-      # list of blast databases indexed by their hash value
       set :databases, {}
     end
 
@@ -122,7 +92,6 @@ module SequenceServer
 
         # perform SequenceServer initializations
         puts "\n== Initializing SequenceServer..."
-        init
 
         # find out the what server to host SequenceServer with
         handler      = detect_rack_handler
@@ -165,30 +134,6 @@ module SequenceServer
       # executables, and databses can not be found. Logs the result if logging
       # has been enabled.
       def init
-        # first read the user supplied configuration options
-        self.config = parse_config
-
-        # empty config file
-        unless config
-          log.warn("Empty configuration file: #{config_file} - will assume default settings")
-          self.config = {}
-        end
-
-        # scan for blast binaries
-        self.binaries = scan_blast_executables(bin).freeze
-
-        # Log the discovery of binaries.
-        binaries.each do |command, path|
-          log.info("Found #{command} at #{path}")
-        end
-
-        # scan for blast database
-        self.databases = scan_blast_db(database, binaries['blastdbcmd']).freeze
-
-        # Log the discovery of databases.
-        databases.each do |id, database|
-          log.info("Found #{database.type} database: #{database.title} at #{database.name}")
-        end
       rescue IOError => error
         log.fatal("Fail: #{error}")
         exit
@@ -202,16 +147,6 @@ module SequenceServer
         log.info("Generated a dummy configuration file: #{config_file}")
         puts "\nPlease edit #{config_file} to indicate the location of your BLAST databases and run SequenceServer again."
         exit
-      end
-
-      # Parse config.yml, and return the resulting hash.
-      #
-      # This method uses YAML.load_file to read config.yml. Absence of a
-      # config.yml is safely ignored as the app should then fall back on
-      # default configuration values. Any other error raised by YAML.load_file
-      # is not rescued.
-      def parse_config
-        YAML.load_file( config_file )
       end
     end
 
