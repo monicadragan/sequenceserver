@@ -1,3 +1,5 @@
+require 'logger'
+
 module SequenceServer
 
   Log = Logger.new(STDERR)
