@@ -10,7 +10,7 @@ module SequenceServer
   # Derive settings from user configuration directory.
   class Settings
 
-    include Helpers
+    include SystemHelpers
 
     class << self
 
