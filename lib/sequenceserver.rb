@@ -2,12 +2,11 @@
 
 require 'sinatra/base'
 require 'yaml'
-require 'logger'
 require 'fileutils'
 require 'sequenceserver/helpers'
 require 'sequenceserver/blast'
 require 'sequenceserver/sequencehelpers'
-require 'sequenceserver/sinatralikeloggerformatter'
+require 'sequenceserver/logger'
 require 'sequenceserver/customisation'
 require 'sequenceserver/version'
 require 'sequenceserver/settings'
@@ -39,8 +38,7 @@ module SequenceServer
       # test suite.
       set :test_database, File.join(root, 'tests', 'database')
 
-      set :log,       Logger.new(STDERR)
-      log.formatter = SinatraLikeLogFormatter.new()
+      set :log,       Log
     end
 
     # Settings derived from configuration directory.
