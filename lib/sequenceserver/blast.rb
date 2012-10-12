@@ -70,8 +70,8 @@ class SequenceServer
     # @member [String] meta
     # @member [String] alignments
     # @member [Array]  coordinates
-    # @member [Array]  databases
-    Hit = Struct.new(:id, :meta, :alignments, :coordinates, :databases) do
+    # @member [Database]  database
+    Hit = Struct.new(:id, :meta, :alignments, :coordinates, :database) do
 
       # Include an anonymous module to define `refs` method so Hit can be
       # extended externally by including another module in front that calls
@@ -79,7 +79,7 @@ class SequenceServer
       include Module.new {
         def refs
           @refs ||= {
-            'FASTA' => "/get_sequence/?id=#{id}&db=#{databases.join(' ')}"
+            'FASTA' => "/get_sequence/?id=#{id}&db=#{database}"
           }
         end
       }
@@ -218,7 +218,9 @@ class SequenceServer
 
           if line.match(/^>/)
             hit_id, hit_meta = parse_fasta_header(line)
-            @queries[query_id][:hits][hit_id] = Hit.new(hit_id, hit_meta, '', [], @databases)
+            # Identify which database hit came from
+            hit_database = @databases.find{|db| !get_sequences(hit_id, db).empty?}
+            @queries[query_id][:hits][hit_id] = Hit.new(hit_id, hit_meta, '', [], hit_database)
           else
             @queries[query_id].hits[hit_id].alignments << line
           end
