@@ -4,7 +4,6 @@ require 'sinatra/base'
 require 'yaml'
 require 'logger'
 require 'fileutils'
-require 'sequenceserver/helpers'
 require 'sequenceserver/blast'
 require 'sequenceserver/sequencehelpers'
 require 'sequenceserver/sinatralikeloggerformatter'
@@ -14,7 +13,6 @@ require 'sequenceserver/version'
 # Helper module - initialize the blast server.
 module SequenceServer
   class App < Sinatra::Base
-    include Helpers::SystemHelpers
     include SequenceHelpers
     include SequenceServer::Customisation
 
@@ -66,27 +64,10 @@ module SequenceServer
     # An Integer stating the number of threads to use for running BLASTs.
     attr_reader :num_threads
 
-    def initialize(config_file)
-      config = YAML.load_file config_file
-      unless config
-        settings.log.warn("Empty configuration file: #{config_file} - will assume default settings")
-        config = {}
-      end
-
-      bin_dir   = File.expand_path(config.delete 'bin') rescue nil
-      @binaries = scan_blast_executables(bin_dir).freeze
-      @binaries.each do |command, path|
-        settings.log.info("Found #{command} at #{path}")
-      end
-
-      database_dir = File.expand_path(config.delete 'database') rescue settings.test_database
-      @databases   = scan_blast_db(database_dir, binaries['blastdbcmd']).freeze
-      databases.each do |id, database|
-        settings.log.info("Found #{database.type} database: #{database.title} at #{database.name}")
-      end
-
-      @num_threads = Integer(config.delete 'num_threads') rescue 4567
-      settings.log.info("Will use #@num_threads threads to run BLAST.")
+    def initialize(binaries, databases, options)
+      @binaries    = binaries
+      @databases   = databases
+      @num_threads = options.delete('num_threads')
 
       # Sinatra, you do your magic now.
       super()

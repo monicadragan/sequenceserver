@@ -4,6 +4,7 @@ require 'rubygems'
 require 'optparse'
 require 'bundler/setup'
 require 'sequenceserver'
+require 'sequenceserver/database'
 
 options = {}
 options['port'] = 4567
@@ -106,19 +107,115 @@ unless File.exists?(config_file)
   exit
 end
 
+config = {}
+config[:database] = File.expand_path('../../tests/database', __FILE__)
+
 begin
-  puts "\n== Initializing SequenceServer..."
-  app = SequenceServer::App.new(options['config_file'])
-  rescue IOError => error
-    puts "Fail: #{error}"
-    exit
+  print "== Reading configuration file ... "
+  if read = YAML.load_file(config_file)
+    config.update read
+    puts "done."
+  else
+    puts "empty."
+  end
   rescue ArgumentError => error
     # _possibly_ triggered by an error in YAML
-    puts "Error in config.yml: #{error}"
+    puts "Error in #{config_file}: #{error}"
     puts "YAML is white space sensitive. Is your config.yml properly indented?"
     exit
 end
 
+begin
+  bin_dir = config.delete('bin')
+  if bin_dir
+    print "== Locating #{bin_dir} ... "
+    bin_dir = File.expand_path(bin_dir)
+    if File.directory?(bin_dir)
+      puts "done."
+    else
+      puts "failed."
+      exit
+    end
+  else
+    print "== Searching PATH for BLAST+ binaries ... "
+    blastp = %x"which blastp 2> /dev/null"
+    if blastp.empty?
+      puts "failed."
+      blasturl = 'http://www.ncbi.nlm.nih.gov/blast/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download'
+      puts "\n\nYou may need to download BLAST+ from #{blasturl}." +
+      " And/or edit configuration file to indicate the location of BLAST+ binaries."
+    else
+      puts "found."
+      bin_dir = File.dirname(blastp)
+    end
+  end
+
+  binaries = %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb blast_formatter|.reduce({}) do |collection, method|
+    collection[method] = File.join(bin_dir, method)
+    collection
+  end
+end
+
+begin
+  database_dir = config.delete('database')
+  unless database_dir
+    puts "Where to look?"
+    exit
+  end
+
+  print "== Locating #{database_dir} ... "
+  database_dir = File.expand_path database_dir
+  if File.directory?(database_dir)
+    puts "done."
+  else
+    puts "failed."
+    exit
+  end
+
+  blastdbcmd = binaries['blastdbcmd']
+  find_dbs_command = %|#{blastdbcmd} -recursive -list #{database_dir} -list_outfmt "%p %f %t" 2>&1|
+
+  puts "Scanning #{database_dir} ..."
+  output = %x|#{find_dbs_command}|
+  if output.empty?
+    puts "No formatted blast databases found in '#{database_dir}'."
+
+    print "Do you want to format your blast databases now? [Y/n]: "
+    choice = gets.chomp[0,1].downcase
+
+    unless choice == 'n'
+      database_formatter = File.join(settings.root, 'database_formatter.rb')
+      system("#{database_formatter} #{db_root}")
+    end
+  end
+
+  if output.match(/BLAST Database error/)
+    puts "Error parsing blast databases.\n" + "Tried: '#{find_dbs_command}'\n"+
+      "It crashed with the following error: '#{databases}'\n" +
+      "Try reformatting databases using makeblastdb.\n"
+  end
+
+  databases = {}
+  output.each_line do |line|
+    next if line.empty?  # required for BLAST+ 2.2.22
+    type, name, *title =  line.split(' ')
+    type = type.downcase.intern
+    name = name.freeze
+    title = title.join(' ').freeze
+
+    # skip past all but alias file of a NCBI multi-part BLAST database
+    if !(name.match(/.+\/\S+\d{2}$/).nil?)
+      puts %|Found a multi-part database volume at #{name} - ignoring it.|
+      next
+    end
+
+    database = SequenceServer::Database.new(name, title, type)
+    puts "Found #{database.type} database: #{database.title} at #{database.name}"
+    databases[database.hash] = database
+  end
+end
+
+app = SequenceServer::App.new(binaries, databases, config)
 url = "http://localshost:#{options['port']}"
 puts "\n== Launched SequenceServer at: #{url}"
 puts "== Press CTRL + C to quit."
