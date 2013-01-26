@@ -9,7 +9,6 @@ require 'find'
 require 'logger'
 require 'optparse'
 require 'sequenceserver'
-require 'sequenceserver/helpers.rb'
 require 'sequenceserver/sequencehelpers.rb'
 
 LOG = Logger.new(STDOUT)
@@ -17,19 +16,14 @@ LOG.level = Logger::INFO
 
 module SequenceServer
   class DatabaseFormatter
-    include SequenceServer
-    include Helpers
-    include SystemHelpers
     include SequenceHelpers
 
-    attr_accessor :db_path
+    attr_accessor :db_path, :binaries
 
-    def initialize(db_path = nil)
-      @app = SequenceServer::App
-      @app.config = @app.parse_config
-      @app.binaries = @app.scan_blast_executables(@app.bin).freeze
-
-      @db_path = (db_path or @app.database)
+    def initialize(db_path, binaries)
+      optspec.order!
+      @db_path  = File.expand_path(ARGV.shift || db_path)
+      @binaries = binaries
     end
 
     def format_databases
@@ -38,7 +32,7 @@ module SequenceServer
         exit
       end
 
-      formatted_dbs = %x|#{@app.binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%f" 2>&1|.split("\n")
+      formatted_dbs = %x|#{binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%f" 2>&1|.split("\n")
       commands = []
       Find.find(db_path) do |file|
         LOG.debug("Assessing file #{file}..")
@@ -97,7 +91,7 @@ module SequenceServer
 
     def db_table(db_path)
       LOG.info("Summary of formatted blast databases:\n")
-      output = %x|#{@app.binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%p %f %t" &2>1 |
+      output = %x|#{binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%p %f %t" &2>1 |
       LOG.info(output)
     end
 
@@ -137,15 +131,14 @@ module SequenceServer
 
     def make_db_command(file,type, title)
       LOG.info("Will make #{type.to_s} database from #{file} with #{title}")
-      command = %|#{@app.binaries['makeblastdb']} -in #{file} -dbtype #{ type.to_s.slice(0,4)} -title "#{title}" -parse_seqids|
+      command = %|#{binaries['makeblastdb']} -in #{file} -dbtype #{ type.to_s.slice(0,4)} -title "#{title}" -parse_seqids|
         LOG.info("Returning: #{command}")
       return(command)
     end
-  end
-end
 
-OptionParser.new do |opts|
-  opts.banner =<<BANNER
+    def optspec
+      @optspec ||= OptionParser.new do |opts|
+        opts.banner =<<BANNER
 
 SUMMARY
 
@@ -157,7 +150,7 @@ USAGE
 
   Example:
 
-    $ sequenceserver format-databases ~/db  # explicitly specify a database directory
+    $ sequenceserver format-databases ~/db # explicitly specify a database directory
     $ sequenceserver format-databases      # use the database directory in config.yml
 
 DESCRIPTION
@@ -166,7 +159,7 @@ DESCRIPTION
   formats them for use with SequenceServer by making them into BLAST databases.
 
   It automagically detects the type of sequence in each FASTA file (nucleotide
-  or amino acid), ignores non-FASTA files and does not recreate BLAST databases. 
+  or amino acid), ignores non-FASTA files and does not recreate BLAST databases.
   The '-parse_seqids' flag for makeblastdb is used to enable sequence retrieval.
 
   'blast_database_directory' can be passed as a command line parameter or
@@ -178,15 +171,15 @@ OPTIONS
 
 BANNER
 
-  opts.on_tail('-h', '--help', 'Show this message') do
-    puts opts
-    exit
-  end
+        opts.on_tail('-h', '--help', 'Show this message') do
+          puts opts
+          exit
+        end
 
-  opts.on('-v', '--verbose', 'Print lots of output') do
-    LOG.level = Logger::DEBUG
+        opts.on('-v', '--verbose', 'Print lots of output') do
+          LOG.level = Logger::DEBUG
+        end
+      end
+    end
   end
-end.parse!
-
-app = SequenceServer::DatabaseFormatter.new(ARGV[0])
-app.format_databases
+end

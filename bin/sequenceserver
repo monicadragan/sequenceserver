@@ -71,23 +71,6 @@ BANNER
       exit
     end
   end.order!
-
-  # of the remaining items in ARGV, the first one must be a subcommand
-  subcommand = ARGV.shift
-
-  if subcommand
-    # process subcommands now
-
-    case subcommand
-    when 'format-databases'
-      require 'sequenceserver/database_formatter'
-      exit
-    else
-      puts "invalid subcommand: #{subcommand}"
-      puts "Run '#{$0} -h' for help with command line options."
-      exit
-    end
-  end
 rescue OptionParser::InvalidOption =>e
   puts e
   puts "Run '#{$0} -h' for help with command line options."
@@ -153,6 +136,32 @@ begin
   binaries = %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb blast_formatter|.reduce({}) do |collection, method|
     collection[method] = File.join(bin_dir, method)
     collection
+  end
+end
+
+# of the remaining items in ARGV, the first one must be a subcommand
+subcommand = ARGV.shift
+
+if subcommand
+  # process subcommands now
+
+  case subcommand
+  when 'format-databases'
+    require 'sequenceserver/database_formatter'
+    database_dir = config.delete('database')
+    begin
+      dbf = SequenceServer::DatabaseFormatter.new(database_dir, binaries)
+    rescue OptionParser::InvalidOption => e
+      puts e
+      puts "Run 'sequenceserver format-databases -h' for help with command line options."
+      exit
+    end
+    dbf.format_databases
+    exit
+  else
+    puts "invalid subcommand: #{subcommand}"
+    puts "Run '#{$0} -h' for help with command line options."
+    exit
   end
 end
 
