@@ -22,8 +22,8 @@ module SequenceServer
       end
     end
 
-    def hash
-      @hash ||= Digest::MD5.hexdigest(self.name)
+    def id
+      @id ||= Digest::MD5.hexdigest(self.name)
     end
   end
 end

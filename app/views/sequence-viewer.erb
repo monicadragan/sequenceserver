@@ -1,0 +1,23 @@
+<%
+# Placeholder for server sent error messages. These are displayed in a modal.
+%>
+<div class="modal hide fade" id="sequence-viewer">
+
+  <div class="modal-header">
+    <h3>FASTA</h3>
+  </div>
+
+  <%#
+    # Sequences sent from the server (a result of rendering
+    # `sequences/show.erb`) are slotted into `modal-body`.
+  %>
+  <div class="modal-body" id="sequences"></div>
+
+  <%#
+    # Additionally, a link to download the sequence is put into `modal-footer`.
+  %>
+  <div class="modal-footer">
+    <a class='pull-right icon-download-alt' id='download-link'
+      title="Download and dismiss." href=""></a>
+  </div>
+</div>

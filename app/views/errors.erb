@@ -1,0 +1,34 @@
+<%
+# Placeholder for server sent error messages. These are displayed in a modal.
+%>
+<div class="modal hide fade" id="error">
+</div>
+
+<%
+# Following templates are for errors that should be handled (raised and
+# reported) by the client itself, for example: failure to get a response
+# from the server due to network issues or server timeout.
+%>
+<div class="modal hide fade" id="error-no-response">
+  <div class="modal-header">
+    <h3 id="error-short">Server didn't respond</h3>
+  </div>
+  <div class="modal-body">
+    <div id="error-message">
+      <p>
+        Could be a temporary network issue, or the service might be
+        configured to "time out" longer BLAST jobs.
+      </p>
+
+      <p>
+        Please try again later, or report to the admin or to <a
+          href="https://groups.google.com/forum/?fromgroups#!forum/sequenceserver">SequenceServer
+          Google Group</a> (if you are the admin) if problem persists.
+      </p>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-danger" data-dismiss="modal">Okay</button>
+  </div>
+</div>
+

@@ -1,146 +1,31 @@
 #!/usr/bin/env ruby
 
-require 'rubygems'
-require 'optparse'
-require 'bundler/setup'
+$LOAD_PATH.unshift File.expand_path('../../lib/', __FILE__)
+
 require 'sequenceserver'
 
-options = {}
-options['port'] = 4567
-options['config_file'] = File.expand_path('~/.sequenceserver.conf')
+# of the remaining items in ARGV, the first one must be a subcommand
+subcommand = ARGV.shift
 
-# e.g:
-# sequenceserver --config .sequenceserver.conf format_database
-begin
-  # parse command line till first non-option, removing parsed options from ARGV
-  OptionParser.new do |opts|
-    opts.banner =<<BANNER
-
-SUMMARY
-
-  custom, local, BLAST server
-
-USAGE
-
-  sequenceserver [options] [subcommand] [subcommand's options]
-
-  Example:
-
-    # launch SequenceServer with the given config file
-    $ sequenceserver --config ~/.sequenceserver.ants.conf
-
-    # use the bundled database formatter utility to prepare databases for use
-    # with SequenceServer
-    $ sequenceserver format-databases
-
-DESCRIPTION
-
-  SequenceServer lets you rapidly set up a BLAST+ server with an intuitive user
-  interface for use locally or over the web.
-
-SUB-COMMANDS
-
-  format-databases:
-    prepare BLAST databases for use with SequenceServer
-
-    Run '#{$0} format-databases -h' for help.
-
-OPTIONS
-
-BANNER
-    opts.on('-p', '--port PORT', 'Port to run SequenceServer on') do |port|
-      begin
-        options['port'] = Integer(port)
-      rescue ArgumentError
-        puts "Port should be a number. Typo?"
-        exit
-      end
-    end
-
-    opts.on('-c', '--config CONFIG_FILE', 'Use the given configuration file') do |config_file|
-      options['config_file'] = File.expand_path(config_file)
-      unless File.exist?(config_file)
-        puts "Couldn't find #{config_file}. Typo?"
-        exit
-      end
-    end
-
-    opts.on('-v', '--version', 'Print version number of SequenceServer that will be loaded.' ) do |config_file|
-      puts SequenceServer.version
+if subcommand
+  case subcommand
+  when 'format-databases'
+    begin
+      ss.database_formatter.run
+    rescue OptionParser::InvalidOption => e
+      puts e
+      puts "Run 'sequenceserver format-databases -h' for help with command line options."
       exit
     end
-  end.order!
-
-  # of the remaining items in ARGV, the first one must be a subcommand
-  subcommand = ARGV.shift
-
-  if subcommand
-    # process subcommands now
-
-    case subcommand
-    when 'format-databases'
-      require 'sequenceserver/database_formatter'
-      exit
-    else
-      puts "invalid subcommand: #{subcommand}"
-      puts "Run '#{$0} -h' for help with command line options."
-      exit
-    end
-  end
-rescue OptionParser::InvalidOption =>e
-  puts e
-  puts "Run '#{$0} -h' for help with command line options."
-  exit
-end
-
-# display name for tools like `ps`
-$PROGRAM_NAME = 'sequenceserver'
-
-config_file = options['config_file']
-unless File.exists?(config_file)
-  puts 'Configuration file not found.'
-  example_config_file = File.expand_path('../../example.config.yml', __FILE__)
-  FileUtils.cp(example_config_file, config_file)
-  puts "Generated a dummy configuration file: #{config_file}."
-  puts "\nPlease edit #{config_file} to indicate the location of BLAST binaries and databases, and run SequenceServer again."
-  exit
-end
-
-begin
-  puts "\n== Initializing SequenceServer..."
-  app = SequenceServer::App.new(options['config_file'])
-  rescue IOError => error
-    puts "Fail: #{error}"
     exit
-  rescue ArgumentError => error
-    # _possibly_ triggered by an error in YAML
-    puts "Error in config.yml: #{error}"
-    puts "YAML is white space sensitive. Is your config.yml properly indented?"
+  when 'server'
+    ss.server.run
     exit
-end
-
-url = "http://localshost:#{options['port']}"
-puts "\n== Launched SequenceServer at: #{url}"
-puts "== Press CTRL + C to quit."
-
-begin
-  Rack::Handler.default.run(app,
-                            :Port => options['port'],
-                            :Logger => Logger.new('/dev/null')) do |server|
-    # for Thin
-    server.silent = true if server.respond_to? :silent
-
-    [:INT, :TERM].each do |sig|
-      trap(sig) do
-        server.respond_to?(:stop!) ? server.stop! : server.stop
-        puts "\n== Thank you for using SequenceServer :)." +
-             "\n== Please cite: " +
-             "\n==             Priyam A., Woodcroft B.J., Wurm Y (in prep)." +
-             "\n==             Sequenceserver: BLAST searching made easy."
-      end
-    end
+  else
+    puts "invalid subcommand: #{subcommand}"
+    puts "Run '#{$0} -h' for help with command line options."
+    exit
   end
-rescue Errno::EADDRINUSE, RuntimeError
-  puts "\n== Failed to start SequenceServer."
-  puts "== Is SequenceServer already running at: #{url}?"
 end
+
+SequenceServer::App.run!

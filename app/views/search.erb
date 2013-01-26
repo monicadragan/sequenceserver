@@ -49,7 +49,7 @@
         <div class="row">
           <div class="span16">
             <div class="control-group">
-              <textarea name="sequence" id="sequence" spellcheck="false" autofocus="true" placeholder="Paste your sequence(s) here..." ></textarea>
+              <textarea name="sequences" id="sequence" spellcheck="false" autofocus="true" placeholder="Paste your sequence(s) here..." ></textarea>
             </div>
           </div>
         </div>
@@ -79,7 +79,7 @@
                   <div class="controls offset-left">
                     <% databases.values.select{|database| database.type == :nucleotide}.sort.each do |database| %>
                       <label class="checkbox">
-                        <input type="checkbox" name="databases[]" value="<%=database.hash%>" data-type="<%=database.type%>" />
+                        <input type="checkbox" name="databases[]" value="<%=database.id%>" data-type="<%=database.type%>" />
                         <span> <%= database.title or database.name %></span>
                       </label>
                     <% end %>
@@ -97,7 +97,7 @@
                   <div class="controls offset-left">
                     <% databases.values.select{|database| database.type == :protein}.sort.each do |database| %>
                       <label class="checkbox">
-                        <input type="checkbox" name="databases[]" value="<%=database.hash%>" data-type="<%=database.type%>" />
+                        <input type="checkbox" name="databases[]" value="<%=database.id%>" data-type="<%=database.type%>" />
                         <span> <%= database.title or database.name %></span>
                       </label>
                     <% end %>
@@ -114,8 +114,8 @@
           <div class="span12">
             <div class="offset-left box advanced">
               <div class="clearfix">
-                <label for="advanced">Advanced Parameters:</label>
-                <input class="span8" type="text" name="advanced" id="advanced" title="View, and enter advanced parameters." placeholder="eg: -evalue 1.0e-5 -num_alignments 100"/>
+                <label for="options">Advanced Parameters:</label>
+                <input class="span8" type="text" name="options" id="options" title="View, and enter advanced parameters." placeholder="eg: -evalue 1.0e-5 -num_alignments 100"/>
                 <span class="icon-question-sign" data-toggle="modal" href="#help"></span>
               </div>
 
@@ -155,19 +155,8 @@
         </div>
       </div>
 
-      <div class="modal hide fade" id="error">
-        <div class="modal-header">
-          <h3 id="error-short">Oops! BLAST Failed</h3>
-        </div>
-        <div class="modal-body">
-          <h4 id="error-type"></h4>
-          <br/>
-          <p id="error-message"></p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-danger" data-dismiss="modal">Close</button>
-        </div>
-      </div>
+      <%= erb :'sequence-viewer' %>
+      <%= erb :errors %>
 
       <div id="underbar">
         <p><strong><a href='http://www.sequenceserver.com'>

@@ -1,0 +1,29 @@
+<% if error %>
+  <p>Dear user,</p>
+
+  <p><strong>We have found
+      <em><%= error[:nfound] > error[:nexpected] ? 'more' : 'less' %></em>
+      sequence than expected.</strong></p>
+
+  <p>This is likely due to a problem with how databases are formatted.
+    <strong>Please share this text with the person managing this website so
+      they can resolve the issue.</strong></p>
+
+  <p>
+    You requested
+    <%= error[:nexpected] %> sequence<%= error[:nexpected] > 1 ? 's' : '' %>
+    with the following identifiers:
+    <code><%= error[:sequence_ids].join(', ') %></code>,
+    from the following databases:
+    <code><%= error[:databases].join(', ') %></code>.
+    But we found <%= error[:nfound] %> sequence<%= error[:nfound] > 1 ? 's' : '' %>.
+  </p>
+
+  <p>If sequences were retrieved, you can find them below (but some may be incorrect, so be careful!).</p>
+  <hr/>
+<% end %>
+<% sequences.each do |sequence| %>
+<pre>
+<%= sequence %>
+</pre>
+<% end %>

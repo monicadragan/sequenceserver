@@ -5,12 +5,16 @@ require 'rack/test'
 
 ENV['RACK_ENV'] = 'test'
 
-module SequenceServer
-  describe "App" do
+class SequenceServer
+  describe "WebBlast" do
     include Rack::Test::Methods
 
+    def runtime
+      @runtime ||= SequenceServer.new
+    end
+
     def app
-      App
+      runtime.web_blast
     end
 
     def setup

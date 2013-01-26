@@ -55,39 +55,17 @@ module SequenceServer
       end
     end
 
-    def sequence_from_blastdb(ids, db)  # helpful when displaying parsed blast results
-      # we know how to handle an Array of ids
-      ids = ids.join(',') if ids.is_a? Array
-
-      # we don't know what to do if the arguments ain't String
-      raise TypeError unless ids.is_a? String and db.is_a? String
-
-      # query now!
-      #
-      # If `blastdbcmd` throws error, we assume sequence not found.
-      blastdbcmd = binaries['blastdbcmd']
-      %x|#{blastdbcmd} -db #{db} -entry '#{ids}' 2> /dev/null|
-    end
-
-    # Given a sequence_id and databases, apply the default (standard)
-    # way to convert a sequence_id into a hyperlink, so that the
-    # blast results include hyperlinks.
-    def construct_standard_sequence_hyperlink(options)
-      if options[:sequence_id].match(/^[^ ]/) #if there is a space right after the '>', makeblastdb was run without -parse_seqids
-        # By default, add a link to a fasta file of the sequence (if makeblastdb was called with -parse_seqids)
-
-        sid = options[:sequence_id].gsub(/<\/?[^>]*>/, '') # strip html
-        cid = sid[/^(\S+)\s*.*/, 1]                        # get id part
-        id  = cid.include?('|') ? cid.split('|')[1] : cid.split('|')[0]
-        @all_retrievable_ids ||= []
-        @all_retrievable_ids.push(id)
-
-        link = "/get_sequence/?id=#{id}&db=#{options[:databases].join(' ')}" # several dbs... separate by ' '
-        return link
-      else
-        # do nothing - link == nil means no link will be incorporated
-        return nil
-      end
+    # Retrieve sequences from sequence databases.
+    def get_sequences(sequence_ids, database_ids)
+      sequence_ids = [sequence_ids] unless sequence_ids.is_a? Array
+      database_ids = [database_ids] unless database_ids.is_a? Array
+      blastdbcmd   = runtime.binaries['blastdbcmd']
+      dbs = runtime.databases.values_at(*database_ids).map(&:name).join(' ')
+      sequences = sequence_ids.map do |sequence_id|
+        output = %x|#{blastdbcmd} -db '#{dbs}' -entry '#{sequence_id}' 2> /dev/null|
+        output unless output.empty?
+      end.compact
+      sequences.empty? ? nil : sequences
     end
   end
 end
