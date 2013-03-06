@@ -1,4 +1,4 @@
-module SequenceServer
+class SequenceServer
   module Customisation
     ## When not commented out, this method is used to take a
     ## sequence ID, and return a hyperlink that

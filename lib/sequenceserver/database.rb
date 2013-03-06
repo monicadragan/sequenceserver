@@ -1,6 +1,6 @@
 require 'digest/md5'
 
-module SequenceServer
+class SequenceServer
   class Database < Struct.new("Database", :name, :title, :type)
     def to_s
       "#{type}: #{title} #{name}"

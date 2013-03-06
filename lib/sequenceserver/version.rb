@@ -1,4 +1,4 @@
-module SequenceServer
+class SequenceServer
 
   # Return version number of SequenceServer from the gemspec.  Version number
   # is read from gemspec, which might fail on older versions of Bundler or

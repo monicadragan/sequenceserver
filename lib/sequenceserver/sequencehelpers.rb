@@ -1,4 +1,4 @@
-module SequenceServer
+class SequenceServer
   # Module to collect some sequence-related helper functions
   module SequenceHelpers
 

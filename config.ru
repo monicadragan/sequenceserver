@@ -2,5 +2,5 @@ require 'rubygems'
 require 'bundler/setup'
 require 'sequenceserver'
 
-SequenceServer::App.init
-run SequenceServer::App
+runtime = SequenceServer.new
+run runtime.web_blast

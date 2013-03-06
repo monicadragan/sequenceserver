@@ -1,162 +1,27 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
-require 'optparse'
 require 'bundler/setup'
 require 'sequenceserver'
-require 'sequenceserver/database'
 
-options = {}
-options['port'] = 4567
-options['config_file'] = File.expand_path('~/.sequenceserver.conf')
-
-# e.g:
-# sequenceserver --config .sequenceserver.conf format_database
-begin
-  # parse command line till first non-option, removing parsed options from ARGV
-  OptionParser.new do |opts|
-    opts.banner =<<BANNER
-
-SUMMARY
-
-  custom, local, BLAST server
-
-USAGE
-
-  sequenceserver [options] [subcommand] [subcommand's options]
-
-  Example:
-
-    # launch SequenceServer with the given config file
-    $ sequenceserver --config ~/.sequenceserver.ants.conf
-
-    # use the bundled database formatter utility to prepare databases for use
-    # with SequenceServer
-    $ sequenceserver format-databases
-
-DESCRIPTION
-
-  SequenceServer lets you rapidly set up a BLAST+ server with an intuitive user
-  interface for use locally or over the web.
-
-SUB-COMMANDS
-
-  format-databases:
-    prepare BLAST databases for use with SequenceServer
-
-    Run '#{$0} format-databases -h' for help.
-
-OPTIONS
-
-BANNER
-    opts.on('-p', '--port PORT', 'Port to run SequenceServer on') do |port|
-      begin
-        options['port'] = Integer(port)
-      rescue ArgumentError
-        puts "Port should be a number. Typo?"
-        exit
-      end
-    end
-
-    opts.on('-c', '--config CONFIG_FILE', 'Use the given configuration file') do |config_file|
-      options['config_file'] = File.expand_path(config_file)
-      unless File.exist?(config_file)
-        puts "Couldn't find #{config_file}. Typo?"
-        exit
-      end
-    end
-
-    opts.on('-v', '--version', 'Print version number of SequenceServer that will be loaded.' ) do |config_file|
-      puts SequenceServer.version
-      exit
-    end
-  end.order!
-rescue OptionParser::InvalidOption =>e
-  puts e
-  puts "Run '#{$0} -h' for help with command line options."
-  exit
-end
-
-# display name for tools like `ps`
-$PROGRAM_NAME = 'sequenceserver'
-
-config_file = options['config_file']
-unless File.exists?(config_file)
-  puts 'Configuration file not found.'
-  example_config_file = File.expand_path('../../example.config.yml', __FILE__)
-  FileUtils.cp(example_config_file, config_file)
-  puts "Generated a dummy configuration file: #{config_file}."
-  puts "\nPlease edit #{config_file} to indicate the location of BLAST binaries and databases, and run SequenceServer again."
-  exit
-end
-
-config = {}
-config[:database] = File.expand_path('../../tests/database', __FILE__)
-
-begin
-  print "== Reading configuration file ... "
-  if read = YAML.load_file(config_file)
-    config.update read
-    puts "done."
-  else
-    puts "empty."
-  end
-  rescue ArgumentError => error
-    # _possibly_ triggered by an error in YAML
-    puts "Error in #{config_file}: #{error}"
-    puts "YAML is white space sensitive. Is your config.yml properly indented?"
-    exit
-end
-
-begin
-  bin_dir = config.delete('bin')
-  if bin_dir
-    print "== Locating #{bin_dir} ... "
-    bin_dir = File.expand_path(bin_dir)
-    if File.directory?(bin_dir)
-      puts "done."
-    else
-      puts "failed."
-      exit
-    end
-  else
-    print "== Searching PATH for BLAST+ binaries ... "
-    blastp = %x"which blastp 2> /dev/null"
-    if blastp.empty?
-      puts "failed."
-      blasturl = 'http://www.ncbi.nlm.nih.gov/blast/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download'
-      puts "\n\nYou may need to download BLAST+ from #{blasturl}." +
-      " And/or edit configuration file to indicate the location of BLAST+ binaries."
-    else
-      puts "found."
-      bin_dir = File.dirname(blastp)
-    end
-  end
-
-  binaries = %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb blast_formatter|.reduce({}) do |collection, method|
-    collection[method] = File.join(bin_dir, method)
-    collection
-  end
-end
+ss = SequenceServer.new
 
 # of the remaining items in ARGV, the first one must be a subcommand
 subcommand = ARGV.shift
 
 if subcommand
-  # process subcommands now
-
   case subcommand
   when 'format-databases'
-    require 'sequenceserver/database_formatter'
-    database_dir = config.delete('database')
     begin
-      dbf = SequenceServer::DatabaseFormatter.new(database_dir, binaries)
+      ss.database_formatter.run
     rescue OptionParser::InvalidOption => e
       puts e
       puts "Run 'sequenceserver format-databases -h' for help with command line options."
       exit
     end
-    dbf.format_databases
+    exit
+  when 'server'
+    ss.server.run
     exit
   else
     puts "invalid subcommand: #{subcommand}"
@@ -165,88 +30,4 @@ if subcommand
   end
 end
 
-begin
-  database_dir = config.delete('database')
-  unless database_dir
-    puts "Where to look?"
-    exit
-  end
-
-  print "== Locating #{database_dir} ... "
-  database_dir = File.expand_path database_dir
-  if File.directory?(database_dir)
-    puts "done."
-  else
-    puts "failed."
-    exit
-  end
-
-  blastdbcmd = binaries['blastdbcmd']
-  find_dbs_command = %|#{blastdbcmd} -recursive -list #{database_dir} -list_outfmt "%p %f %t" 2>&1|
-
-  puts "Scanning #{database_dir} ..."
-  output = %x|#{find_dbs_command}|
-  if output.empty?
-    puts "No formatted blast databases found in '#{database_dir}'."
-
-    print "Do you want to format your blast databases now? [Y/n]: "
-    choice = gets.chomp[0,1].downcase
-
-    unless choice == 'n'
-      database_formatter = File.join(settings.root, 'database_formatter.rb')
-      system("#{database_formatter} #{db_root}")
-    end
-  end
-
-  if output.match(/BLAST Database error/)
-    puts "Error parsing blast databases.\n" + "Tried: '#{find_dbs_command}'\n"+
-      "It crashed with the following error: '#{databases}'\n" +
-      "Try reformatting databases using makeblastdb.\n"
-  end
-
-  databases = {}
-  output.each_line do |line|
-    next if line.empty?  # required for BLAST+ 2.2.22
-    type, name, *title =  line.split(' ')
-    type = type.downcase.intern
-    name = name.freeze
-    title = title.join(' ').freeze
-
-    # skip past all but alias file of a NCBI multi-part BLAST database
-    if !(name.match(/.+\/\S+\d{2}$/).nil?)
-      puts %|Found a multi-part database volume at #{name} - ignoring it.|
-      next
-    end
-
-    database = SequenceServer::Database.new(name, title, type)
-    puts "Found #{database.type} database: #{database.title} at #{database.name}"
-    databases[database.hash] = database
-  end
-end
-
-app = SequenceServer::App.new(binaries, databases, config)
-url = "http://localshost:#{options['port']}"
-puts "\n== Launched SequenceServer at: #{url}"
-puts "== Press CTRL + C to quit."
-
-begin
-  Rack::Handler.default.run(app,
-                            :Port => options['port'],
-                            :Logger => Logger.new('/dev/null')) do |server|
-    # for Thin
-    server.silent = true if server.respond_to? :silent
-
-    [:INT, :TERM].each do |sig|
-      trap(sig) do
-        server.respond_to?(:stop!) ? server.stop! : server.stop
-        puts "\n== Thank you for using SequenceServer :)." +
-             "\n== Please cite: " +
-             "\n==             Priyam A., Woodcroft B.J., Wurm Y (in prep)." +
-             "\n==             Sequenceserver: BLAST searching made easy."
-      end
-    end
-  end
-rescue Errno::EADDRINUSE, RuntimeError
-  puts "\n== Failed to start SequenceServer."
-  puts "== Is SequenceServer already running at: #{url}?"
-end
+ss.server.run

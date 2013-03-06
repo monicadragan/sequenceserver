@@ -14,19 +14,23 @@ require 'sequenceserver/sequencehelpers.rb'
 LOG = Logger.new(STDOUT)
 LOG.level = Logger::INFO
 
-module SequenceServer
+class SequenceServer
   class DatabaseFormatter
     include SequenceHelpers
 
     attr_accessor :db_path, :binaries
 
-    def initialize(db_path, binaries)
+    def initialize(binaries, db_path)
       optspec.order!
       @db_path  = File.expand_path(ARGV.shift || db_path)
       @binaries = binaries
+    rescue OptionParser::InvalidOption =>e
+      puts e
+      puts "Run '#{$0} -h' for help with command line options."
+      exit
     end
 
-    def format_databases
+    def run
       unless File.directory?(db_path)
         LOG.fatal("Database directory #{db_path} not found. See 'sequenceserver format-databases --help' for instructions.")
         exit

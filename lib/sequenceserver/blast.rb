@@ -1,6 +1,6 @@
 require 'tempfile'
 
-module SequenceServer
+class SequenceServer
   # Simple BLAST+ wrapper.
   class Blast
 

@@ -1,4 +1,4 @@
-module SequenceServer
+class SequenceServer
   # We change Logging format so that it is consistent with Sinatra's
   class SinatraLikeLogFormatter < Logger::Formatter 
     MyFormat = "[%s] %s  %s\n"
