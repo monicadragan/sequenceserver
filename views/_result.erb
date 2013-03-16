@@ -8,8 +8,7 @@
 
 <% query.hits.each do |hit_id, hit| %>
 <a id="<%= hit_id.split('|').last %>"></a>
-<%= ">#{hit_id} #{hit.meta}" %> <%= hit.refs.map{|name, href| "[<a href=#{uri(href)}>#{name}</a>]"}.join(' ') %>
-
+<%= ">#{hit_id} #{hit.meta}" %> <span class="pull-right"><%= hit.refs.map{|name, href| "[<a href=#{uri(href)}>#{name}</a>]"}.join(' ') %></span>
 <%= hit.alignments.strip %>
 
 <% end %>
