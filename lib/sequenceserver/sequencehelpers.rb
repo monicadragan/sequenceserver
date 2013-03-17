@@ -62,9 +62,10 @@ class SequenceServer
       blastdbcmd   = runtime.binaries['blastdbcmd']
       dbs = runtime.databases.values_at(*database_ids).map(&:name).join(' ')
       sequences = sequence_ids.map do |sequence_id|
-        %x|#{blastdbcmd} -db '#{dbs}' -entry '#{sequence_id}' 2> /dev/null|
-      end
-      sequences
+        output = %x|#{blastdbcmd} -db '#{dbs}' -entry '#{sequence_id}' 2> /dev/null|
+        output unless output.empty?
+      end.compact
+      sequences.empty? ? nil : sequences
     end
   end
 end

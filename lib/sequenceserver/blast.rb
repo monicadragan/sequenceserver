@@ -251,7 +251,7 @@ class SequenceServer
 
       # Characters between leading greater than sign and first whitespace
       # comprise sequence id.
-      header.match(/^>(\S+)\s*(.*)/)[1..2]
+      header.match(/^>\s?(\S+)\s*(.*)/)[1..2]
     end
 
     # Compute hit coordinates -- useful for linking to genome browsers.
