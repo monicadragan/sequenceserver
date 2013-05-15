@@ -139,7 +139,7 @@ module SequenceServer
     def compile!
       validate
 
-      binary = runtime.binaries[@method]
+      binary = settings.binaries[@method]
 
       # BLAST+ expects query sequence as a file.
       @qfile = Tempfile.new('sequenceserver_query')
@@ -148,7 +148,7 @@ module SequenceServer
 
       # map: database id -> file name
       db = @databases.map do |id|
-        runtime.databases[id].name
+        settings.databases[id].name
       end.join(' ')
 
       options = @options + defaults
@@ -196,6 +196,8 @@ module SequenceServer
       query_id = nil
       hit_id   = nil
       result.each do |line|
+        puts line
+        next
         next if /^<(\/)(HTML|BODY|PRE)/.match(line)
 
         if matches = line.match(/^<b>Query=<\/b> (.*)/)
@@ -230,7 +232,9 @@ module SequenceServer
           end
         end
 
-        if line.match(/^  Database: /)
+        if line.match(/^\s+Database:\s+/)
+          puts "*************************"
+          p line
           query_id = nil
           hit_id   = nil
           @summary = ''
@@ -265,9 +269,9 @@ module SequenceServer
     end
 
     def validate_method
-      unless runtime.binaries.include? @method
+      unless settings.binaries.include? @method
         raise ArgumentError.new("BLAST method should be one of:
-                                #{runtime.binaries.keys.join(',')}.")
+                                #{settings.binaries.keys.join(',')}.")
       end
 
       true
@@ -283,10 +287,10 @@ module SequenceServer
 
     def validate_databases
       if @databases.empty? ||
-        (runtime.databases.keys & @databases) != @databases # not a subset
+        (settings.databases.keys & @databases) != @databases # not a subset
         raise ArgumentError.new("Databases should be a list of one ore more
                                 of the following ids:
-                                #{runtime.databases.keys.join(',')}")
+                                #{settings.databases.keys.join(',')}")
       end
 
       true
@@ -300,7 +304,7 @@ module SequenceServer
         raise ArgumentError.new("Invalid characters detected in options.")
       end
 
-      disallowed_options = %w(-out -html -outfmt -db -query)
+      disallowed_options = %w(-html -db -query)
       disallowed_options.each do |o|
         if @options =~ /#{o}/i
           raise ArgumentError.new("Option \"#{o}\" is prohibited.")
@@ -311,7 +315,7 @@ module SequenceServer
     end
 
     def defaults
-      defaults = ' -html'
+      defaults = ' '
 
       # blastn implies blastn, not megablast; but let's not interfere if a user
       # specifies `task` herself.

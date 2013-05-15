@@ -2,7 +2,7 @@ require 'sequenceserver'
 require 'minitest/spec'
 require 'minitest/autorun'
 
-class SequenceServer
+module SequenceServer
 
   describe "Blast" do
 

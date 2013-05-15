@@ -14,7 +14,7 @@
   <%= erb :_result, :locals => {:query_id => query_id, :query => query} %>
 <% end %>
 <pre>
-  <%= query.summary.strip %>
+  <%= query.summary and query.summary.strip %>
 </pre>
 
 <pre>
